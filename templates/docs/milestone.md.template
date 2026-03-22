@@ -1,0 +1,32 @@
+# Milestone: {{MILESTONE_ID}} — {{MILESTONE_NAME}}
+
+## Objective
+<!-- What does completing this milestone achieve? -->
+
+## Success Criteria
+<!-- How do we know this milestone is done? -->
+1.
+
+## Scope
+<!-- What's included in this milestone? -->
+
+## Out of Scope
+<!-- What's explicitly deferred to later milestones? -->
+
+## Technical Approach
+<!-- How will we implement this? Key design decisions. -->
+
+## Dependencies
+<!-- What must be true before we can start? Other milestones, external deps. -->
+
+## Repos Affected
+<!-- Which repos will have PRs for this milestone? -->
+
+## Status
+- [ ] Tasks generated (`/split-milestone`)
+- [ ] All tasks approved
+- [ ] All tasks completed
+- [ ] Consolidation complete
+
+## Completion Summary
+<!-- Filled in by /consolidate when all tasks are done -->

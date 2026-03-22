@@ -1,0 +1,28 @@
+---
+id: task-{{NUMBER}}
+type: pr
+milestone: {{MILESTONE_ID}}
+status: pending
+depends_on: []
+repos: []
+created: {{DATE}}
+qa:
+  unit_tests: true
+  integration_tests: false
+  local_validation: ""
+  qa_env: false
+  prod_validation: false
+---
+
+## Summary
+<!-- What needs to be done? -->
+
+## Acceptance Criteria
+<!-- When is this task done? Be specific. -->
+1.
+
+## Technical Notes
+<!-- Implementation hints, relevant files, gotchas. -->
+
+## Work Log
+<!-- Claude appends here as it works. Do not edit manually. -->

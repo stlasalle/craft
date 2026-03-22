@@ -1,0 +1,35 @@
+# Project: {{PROJECT_NAME}}
+
+## Overview
+<!-- What is this project? What problem does it solve? -->
+
+## Goals
+<!-- What does success look like? Be specific and measurable. -->
+1.
+
+## Non-Goals
+<!-- What is explicitly out of scope? -->
+1.
+
+## Context
+<!-- Relevant background: team context, prior work, constraints, timelines. -->
+
+## High-Level Approach
+<!-- How will we achieve the goals? What are the major phases? -->
+
+## Milestones
+<!-- Ordered list of milestones. Each gets its own doc in docs/milestones/. -->
+1.
+
+## Risks & Open Questions
+<!-- What could go wrong? What do we not yet know? -->
+1.
+
+## Dependencies
+<!-- External teams, services, or decisions this project depends on. -->
+
+## Repos
+<!-- Which repositories does this project touch? -->
+| Repo | Purpose | Clone URL |
+|------|---------|-----------|
+|      |         |           |

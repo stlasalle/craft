@@ -1,0 +1,22 @@
+# Project State: {{PROJECT_NAME}}
+
+> Auto-maintained by the orchestrator and skills. Manual edits are fine but may be overwritten.
+
+## Current Phase
+<!-- Which milestone is active? -->
+
+## Progress
+| Milestone | Status | Tasks Total | Tasks Done | Tasks Blocked |
+|-----------|--------|-------------|------------|---------------|
+
+## Active Tasks
+<!-- Tasks currently in-progress -->
+
+## Blocked Tasks
+<!-- Tasks that need attention -->
+
+## Recent Activity
+<!-- Last 10 state transitions, newest first -->
+
+## Last Updated
+{{TIMESTAMP}}

@@ -1,0 +1,47 @@
+# Project: {{PROJECT_NAME}}
+
+You are working inside an autopilot-managed project workspace.
+The folder structure IS the project state — read it to understand what's happening.
+
+## How To Work Here
+
+- Read `docs/plan.md` for the master plan
+- Read `docs/milestones/` for milestone definitions
+- Read `docs/adrs/` for architectural decisions
+- The `queue/` folder contains all work items — check status in YAML frontmatter
+- The `repos/` folder contains git worktree checkouts — do code work there
+- Always update `state.md` after completing work
+- Append to the "Work Log" section of task files as you work
+
+## Task Lifecycle
+
+1. Tasks start in `queue/pending/` — Sam reviews and moves to `queue/approved/`
+2. The orchestrator picks up approved tasks and moves to `queue/in-progress/`
+3. When work is done, tasks move to `queue/done/`
+4. If stuck, tasks move to `queue/blocked/` with explanation in the file
+5. On milestone completion, `/consolidate` archives tasks to `queue/archive/{milestone}/`
+
+## Conventions
+
+- PRs must be **draft PRs** — Sam marks them ready after review
+- PR titles reference the task ID: `[task-042] Add ContentFlagEvent handler`
+- Never merge — only create PRs for Sam to review
+- Assign Sam as reviewer on all PRs
+- If blocked, move the task to `queue/blocked/` and explain why in the file
+- Commit messages should be clear and reference the task ID
+
+## QA Requirements
+
+Each task's YAML frontmatter has a `qa:` block specifying what validation is required:
+- `unit_tests: true` — run unit tests and ensure they pass
+- `integration_tests: true` — run integration tests
+- `local_validation: "command"` — run the specified command and verify output
+- `qa_env: true` — flag that QA environment testing is needed (Sam will handle)
+- `prod_validation: true` — flag that production validation is needed (Sam will handle)
+
+Only `unit_tests`, `integration_tests`, and `local_validation` are automatable.
+`qa_env` and `prod_validation` create follow-up items for Sam.
+
+## Repos
+
+{{REPO_TABLE}}

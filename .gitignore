@@ -1,0 +1,10 @@
+# Repo worktrees inside project instances
+projects/*/repos/
+
+# OS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
