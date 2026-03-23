@@ -4,15 +4,27 @@
 # Session name for the orchestrator
 TMUX_SESSION="autopilot"
 
-# Ensure the tmux session exists
+# Ensure the tmux session exists, with orchestrator + planner windows
+# Returns the session name
 ensure_session() {
     local project_name="$1"
+    local project_dir="$2"  # optional — used to cd the planner window
     local session="${TMUX_SESSION}-${project_name}"
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
         tmux new-session -d -s "$session" -n "orchestrator"
-        echo "Created tmux session: $session"
     fi
+
+    # Ensure planner window exists
+    if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^planner$'; then
+        if [[ -n "${project_dir:-}" ]]; then
+            tmux new-window -t "${session}:" -n "planner" "cd '${project_dir}' && exec \$SHELL"
+        else
+            tmux new-window -t "${session}:" -n "planner"
+        fi
+        tmux select-window -t "${session}:orchestrator"
+    fi
+
     echo "$session"
 }
 

@@ -256,13 +256,19 @@ check_milestone_completion() {
 
 # --- Main Loop ---
 
+# Ensure tmux session with orchestrator + planner windows
+SESSION=$(ensure_session "$PROJECT_NAME" "$PROJECT_DIR")
+
+# If we're not already inside this tmux session, re-exec ourselves inside the orchestrator pane
+if [[ -z "${TMUX:-}" ]] || [[ "$(tmux display-message -p '#{session_name}' 2>/dev/null)" != "$SESSION" ]]; then
+    tmux send-keys -t "${SESSION}:orchestrator" "exec '$0' '$PROJECT_DIR' --max-parallel $MAX_PARALLEL --poll-interval $POLL_INTERVAL" Enter
+    exec tmux attach -t "$SESSION"
+fi
+
 echo "Autopilot orchestrator starting for: $PROJECT_DIR"
 echo "Max parallel tasks: $MAX_PARALLEL"
 echo "Poll interval: ${POLL_INTERVAL}s"
 echo ""
-
-# Ensure tmux session
-ensure_session "$PROJECT_NAME" > /dev/null
 
 trap 'echo ""; echo "Orchestrator stopped."; exit 0' INT TERM
 
