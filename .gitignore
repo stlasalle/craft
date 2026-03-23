@@ -1,5 +1,5 @@
-# Repo worktrees inside project instances
-projects/*/repos/
+# Project instances (stateful, per-user)
+projects/
 
 # OS
 .DS_Store

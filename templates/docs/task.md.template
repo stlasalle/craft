@@ -5,6 +5,7 @@ milestone: {{MILESTONE_ID}}
 status: pending
 depends_on: []
 repos: []
+branch: sls/{{TICKET}}/{{BRANCH_NAME}}
 created: {{DATE}}
 qa:
   unit_tests: true

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # orchestrator.sh — Persistent daemon that processes the autopilot task queue
 #
@@ -62,8 +62,8 @@ for dir in approved in-progress done blocked archive; do
 done
 
 # --- State tracking ---
-declare -A ACTIVE_TASKS  # task_id -> tmux window name
-declare -A TASK_PR_URLS  # task_id -> PR URL (for merge monitoring)
+declare -A ACTIVE_TASKS=()  # task_id -> tmux window name
+declare -A TASK_PR_URLS=()  # task_id -> PR URL (for merge monitoring)
 
 # --- Display ---
 RED='\033[0;31m'
@@ -166,16 +166,24 @@ run_task() {
     local new_file
     new_file=$(move_task "$task_file" "$QUEUE_DIR/in-progress" "in-progress")
 
-    # Build the claude command
-    local claude_cmd="claude -p '/work-task $filename' --cwd '$PROJECT_DIR' --allowedTools 'Read,Write,Edit,Bash,Glob,Grep,Agent'"
+    # Build the prompt file
+    # Read the skill template and substitute $ARGUMENTS
+    # Prepend a note that the task has already been moved to in-progress by the orchestrator
+    local skill_file="$PROJECT_DIR/.claude/commands/work-task.md"
+    local prompt_file="/tmp/autopilot-prompt-${tid}.txt"
+    {
+        echo "NOTE: The orchestrator has already moved this task to queue/in-progress/${filename} and set its status to in-progress. Skip Step 2 (Move Task to In-Progress) — start from Step 1 (read context) then go straight to Step 3 (do the work)."
+        echo ""
+        sed "s/\\\$ARGUMENTS/$filename/g" "$skill_file"
+    } > "$prompt_file"
 
     # Get the tmux session
     local session
     session=$(ensure_session "$PROJECT_NAME")
 
-    # Spawn a tmux pane for this task
+    # Spawn an interactive claude session in a tmux window (no -p flag, so TUI is visible)
     local window
-    window=$(spawn_task_pane "$session" "$tid" "$claude_cmd")
+    window=$(spawn_task_pane "$session" "$tid" "$prompt_file" "$PROJECT_DIR")
 
     # Track it
     ACTIVE_TASKS["$tid"]="$window"
@@ -270,9 +278,8 @@ while true; do
     fi
 
     # Pick up new tasks if we have capacity
-    local active_count=${#ACTIVE_TASKS[@]}
+    active_count=${#ACTIVE_TASKS[@]}
     while (( active_count < MAX_PARALLEL )); do
-        local next_task
         next_task=$(next_ready_task "$QUEUE_DIR") || break
 
         run_task "$next_task"

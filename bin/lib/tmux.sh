@@ -19,11 +19,14 @@ ensure_session() {
 # Create a new pane for a task and run a command in it
 # Returns the pane ID
 spawn_task_pane() {
-    local session="$1" task_id="$2" command="$3"
+    local session="$1" task_id="$2" prompt_file="$3" work_dir="$4"
 
-    # Create a new window for this task
+    # tmux new-window runs via sh -c; use interactive claude (no -p) so TUI is visible
+    # Following the pattern from slack-bot/listener.js
+    local cmd="cd '${work_dir}' && claude \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'; exec \$SHELL"
+
     local window_id
-    window_id=$(tmux new-window -t "$session" -n "$task_id" -P -F '#{window_id}' "$command; echo '--- Task $task_id finished (exit code: $?) ---'; read")
+    window_id=$(tmux new-window -t "${session}:" -n "$task_id" -P -F '#{window_id}' "$cmd")
 
     echo "$window_id"
 }

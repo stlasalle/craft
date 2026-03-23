@@ -28,6 +28,9 @@ fi
 
 echo "Creating project: $PROJECT_NAME"
 
+# Ensure projects directory exists
+mkdir -p "$PROJECTS_DIR"
+
 # Copy template structure
 cp -R "$TEMPLATES_DIR" "$PROJECT_DIR"
 
