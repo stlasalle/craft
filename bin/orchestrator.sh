@@ -54,12 +54,10 @@ QUEUE_DIR="$PROJECT_DIR/queue"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
 # Validate project structure
-for dir in approved in-progress done blocked archive; do
-    if [[ ! -d "$QUEUE_DIR/$dir" ]]; then
-        echo "Error: $QUEUE_DIR/$dir does not exist. Is this an autopilot project?"
-        exit 1
-    fi
+for dir in approved in-progress done blocked archive waiting; do
+    mkdir -p "$QUEUE_DIR/$dir"
 done
+mkdir -p "$PROJECT_DIR/worktrees"
 
 # --- State tracking ---
 declare -A ACTIVE_TASKS=()  # task_id -> tmux window name
@@ -87,21 +85,29 @@ render_dashboard() {
     echo ""
 
     # Counts
-    local n_pending n_approved n_in_progress n_done n_blocked
+    local n_pending n_approved n_in_progress n_done n_blocked n_waiting
     n_pending=$(count_tasks "$QUEUE_DIR/pending")
     n_approved=$(count_tasks "$QUEUE_DIR/approved")
     n_in_progress=$(count_tasks "$QUEUE_DIR/in-progress")
     n_done=$(count_tasks "$QUEUE_DIR/done")
     n_blocked=$(count_tasks "$QUEUE_DIR/blocked")
+    n_waiting=$(count_tasks "$QUEUE_DIR/waiting")
 
-    echo -e "  ${BLUE}○${NC} Pending: $n_pending    ${YELLOW}◐${NC} Approved: $n_approved    ${CYAN}●${NC} In Progress: $n_in_progress    ${GREEN}✓${NC} Done: $n_done    ${RED}✗${NC} Blocked: $n_blocked"
+    echo -e "  ${BLUE}○${NC} Pending: $n_pending  ${YELLOW}◐${NC} Approved: $n_approved  ${CYAN}●${NC} In Progress: $n_in_progress  ${YELLOW}◉${NC} Waiting: $n_waiting  ${GREEN}✓${NC} Done: $n_done  ${RED}✗${NC} Blocked: $n_blocked"
     echo ""
 
-    # Active tasks
-    if [[ ${#ACTIVE_TASKS[@]} -gt 0 ]]; then
-        echo -e "${BOLD}  Active Tasks:${NC}"
-        for task_id in "${!ACTIVE_TASKS[@]}"; do
-            echo -e "    ${CYAN}●${NC} $task_id  [tmux window: ${ACTIVE_TASKS[$task_id]}]"
+    # Waiting tasks — needs Sam's attention (PR review)
+    if [[ "$n_waiting" -gt 0 ]]; then
+        echo -e "${BOLD}${YELLOW}  ◉ WAITING FOR REVIEW:${NC}"
+        for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
+            local tid pr_url
+            tid=$(task_id "$task_file")
+            pr_url=$(task_field "$task_file" "pr")
+            if [[ -n "$pr_url" ]]; then
+                echo -e "    ${YELLOW}◉${NC} $tid  ${CYAN}$pr_url${NC}"
+            else
+                echo -e "    ${YELLOW}◉${NC} $tid"
+            fi
         done
         echo ""
     fi
@@ -117,9 +123,18 @@ render_dashboard() {
         echo ""
     fi
 
-    # Approved tasks waiting
+    # Active tasks
+    if [[ ${#ACTIVE_TASKS[@]} -gt 0 ]]; then
+        echo -e "${BOLD}  Active Tasks:${NC}"
+        for task_id in "${!ACTIVE_TASKS[@]}"; do
+            echo -e "    ${CYAN}●${NC} $task_id  [tmux window: ${ACTIVE_TASKS[$task_id]}]"
+        done
+        echo ""
+    fi
+
+    # Approved tasks queued
     if [[ "$n_approved" -gt 0 ]]; then
-        echo -e "${BOLD}  Queue (approved, waiting):${NC}"
+        echo -e "${BOLD}  Queue (approved):${NC}"
         for task_file in $(list_tasks "$QUEUE_DIR/approved"); do
             local tid dep_status
             tid=$(task_id "$task_file")
@@ -189,6 +204,19 @@ run_task() {
     ACTIVE_TASKS["$tid"]="$window"
 }
 
+# Find a task file by task ID across queue directories
+find_task_in() {
+    local dir="$1" tid="$2"
+    for f in "$dir"/*.md; do
+        [[ -f "$f" ]] || continue
+        if [[ "$(task_id "$f")" == "$tid" ]]; then
+            echo "$f"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Check if active tasks have finished
 check_active_tasks() {
     local session
@@ -200,10 +228,12 @@ check_active_tasks() {
             unset ACTIVE_TASKS["$tid"]
 
             # Check where the task ended up
-            if [[ -f "$QUEUE_DIR/done/$tid.md" ]]; then
+            if find_task_in "$QUEUE_DIR/done" "$tid" > /dev/null; then
                 notify_done "$tid" ""
-            elif [[ -f "$QUEUE_DIR/blocked/$tid.md" ]]; then
+            elif find_task_in "$QUEUE_DIR/blocked" "$tid" > /dev/null; then
                 notify_blocked "$tid" "Task moved to blocked"
+            elif find_task_in "$QUEUE_DIR/waiting" "$tid" > /dev/null; then
+                notify_waiting "$tid"
             fi
 
             # Clean up the tmux window

@@ -22,7 +22,15 @@ notify_blocked() {
 # Notify about a completed task
 notify_done() {
     local task_id="$1" pr_url="$2"
-    notify "Autopilot — PR Ready" "$task_id: Draft PR created"
+    notify "Autopilot — Done" "$task_id: PR merged"
+    bell
+}
+
+# Notify about a task waiting for review
+notify_waiting() {
+    local task_id="$1"
+    notify "Autopilot — PR Ready for Review" "$task_id: Draft PR needs your attention"
+    bell
 }
 
 # Notify about milestone completion
