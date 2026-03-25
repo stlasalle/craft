@@ -26,7 +26,7 @@ The folder structure IS the project state — read it to understand what's happe
 - PRs must be **draft PRs** — Sam marks them ready after review
 - PR titles reference the task ID: `[task-042] Add ContentFlagEvent handler`
 - Never merge — only create PRs for Sam to review
-- Assign Sam as reviewer on all PRs
+- Assign `stlasalle` as reviewer on all PRs (`--reviewer stlasalle`)
 - If blocked, move the task to `queue/blocked/` and explain why in the file
 - Commit messages should be clear and reference the task ID
 

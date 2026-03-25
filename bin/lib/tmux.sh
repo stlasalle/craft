@@ -13,14 +13,31 @@ ensure_session() {
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
         tmux new-session -d -s "$session" -n "orchestrator"
+        # Disable monitor-activity on the orchestrator window so dashboard refreshes
+        # don't trigger tmux activity alerts
+        tmux set-option -t "${session}:orchestrator" monitor-activity off 2>/dev/null || true
     fi
 
-    # Ensure planner window exists
-    if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^planner$'; then
+    # Ensure architect window exists — a Claude session pre-loaded with project context
+    if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^architect$'; then
         if [[ -n "${project_dir:-}" ]]; then
-            tmux new-window -t "${session}:" -n "planner" "cd '${project_dir}' && exec \$SHELL"
+            local architect_prompt="/tmp/autopilot-architect-${project_name}.txt"
+            cat > "$architect_prompt" <<'PROMPT'
+You are the project architect. Read the full project context so you are ready to help with planning, task creation, and questions.
+
+Read these files now:
+1. docs/plan.md — the master plan
+2. docs/milestones/ — all milestone definitions
+3. docs/adrs/ — all architectural decision records
+4. state.md — current project state
+5. queue/ — scan all directories (pending, approved, in-progress, waiting, done, blocked) to understand the current task landscape
+6. .claude/CLAUDE.md — project conventions
+
+After reading, confirm you're ready and give a brief summary of the project state. Then wait for my questions — I'll ask you things like "help me prepare a task for X" or "what's the status of Y".
+PROMPT
+            tmux new-window -t "${session}:" -n "architect" "cd '${project_dir}' && claude \"\$(cat '${architect_prompt}')\" ; rm -f '${architect_prompt}'; exec \$SHELL"
         else
-            tmux new-window -t "${session}:" -n "planner"
+            tmux new-window -t "${session}:" -n "architect"
         fi
         tmux select-window -t "${session}:orchestrator"
     fi

@@ -73,7 +73,8 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 clear_screen() {
-    clear
+    # Use ANSI escape to clear without triggering tmux activity detection
+    printf '\033[2J\033[H'
 }
 
 render_dashboard() {
@@ -284,6 +285,32 @@ check_milestone_completion() {
     done
 }
 
+# Check for new tasks in waiting state and notify
+# Uses a marker file per task to survive orchestrator restarts
+check_waiting_tasks() {
+    local marker_dir="/tmp/autopilot-waiting-${PROJECT_NAME}"
+    mkdir -p "$marker_dir"
+    for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
+        local tid
+        tid=$(task_id "$task_file")
+        [[ -z "$tid" ]] && continue
+        if [[ ! -f "$marker_dir/$tid" ]]; then
+            touch "$marker_dir/$tid"
+            notify_waiting "$tid"
+            echo "[$(date '+%H:%M:%S')] Task $tid is waiting for review"
+        fi
+    done
+    # Clean up markers for tasks no longer in waiting
+    for marker in "$marker_dir"/*; do
+        [[ -f "$marker" ]] || continue
+        local marker_tid
+        marker_tid=$(basename "$marker")
+        if ! find_task_in "$QUEUE_DIR/waiting" "$marker_tid" > /dev/null 2>&1; then
+            rm -f "$marker"
+        fi
+    done
+}
+
 # --- Main Loop ---
 
 # Ensure tmux session with orchestrator + planner windows
@@ -307,6 +334,9 @@ poll_count=0
 while true; do
     # Check finished tasks
     check_active_tasks
+
+    # Check for new waiting tasks
+    check_waiting_tasks
 
     # Check milestone completion every 4th poll
     if (( poll_count % 4 == 0 )); then

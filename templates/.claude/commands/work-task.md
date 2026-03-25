@@ -71,13 +71,30 @@ If any automated QA step fails and you cannot fix it after 2 attempts:
      - Summary of changes
      - QA results (what passed, what's flagged for manual review)
      - Any notes or concerns
-   - Assign Sam as reviewer
+   - Assign `stlasalle` as reviewer (`--reviewer stlasalle`)
 4. Append the PR URL to the task's Work Log
 5. Update the task frontmatter to add `pr: {pr-url}`
 
-## Step 7: Move Task to Waiting
+## Step 7: Self-Review
 
-After creating the draft PR, move the task to the waiting state so the orchestrator can notify Sam.
+Before moving to waiting, review your own PR. This catches issues before Sam sees it.
+
+1. Get the full diff: `gh pr diff {number}`
+2. For each changed file, re-read the full file to check context
+3. Review for:
+   - **Correctness**: bugs, off-by-one errors, unhandled edge cases, null/undefined risks
+   - **Code quality**: follows existing codebase conventions, no unnecessary `any` casts, no unused imports
+   - **Testing**: new code has test coverage, test descriptions are clear
+   - **Security**: no injection risks, no exposed secrets
+   - **Performance**: no N+1 queries, no unnecessary allocations
+4. If you find issues: fix them, commit, and push. Do NOT post review comments on your own PR.
+5. Append a brief self-review summary to the Work Log (what you checked, what you fixed if anything)
+
+**Important:** Do NOT post GitHub review comments. The Claude Code GitHub Action will run its own review when Sam marks the PR as ready — avoid duplicate comment spam.
+
+## Step 8: Move Task to Waiting
+
+After self-review, move the task to the waiting state so the orchestrator can notify Sam.
 
 1. Update the task frontmatter: set `status: waiting`
 2. Move the file: `queue/in-progress/{task}.md` → `queue/waiting/{task}.md`
@@ -87,30 +104,45 @@ After creating the draft PR, move the task to the waiting state so the orchestra
    PR: {pr-url}
    ```
 
-## Step 8: Monitor PR Until Merge
+## Step 9: Monitor PR Until Merge
 
 After moving to waiting, enter a polling loop.
 
+Track whether the PR is still a draft. Initially it will be `isDraft: true`.
+
 **Polling loop (every ~15 seconds):**
 
-1. Check PR status using `gh pr view {number} --json state,reviews,comments,mergedAt`
+1. Check PR status using `gh pr view {number} --json state,isDraft,reviews,comments,mergedAt,statusCheckRollup,title`
 2. If the PR has been **merged** (`state: MERGED`):
    - Exit the polling loop
-   - Proceed to Step 9 (Complete Task)
-3. If there are **new review comments or PR comments** since last check:
+   - Proceed to Step 10 (Complete Task)
+3. If the PR was **previously a draft** but is now **no longer a draft** (`isDraft` changed from `true` to `false`):
+   - Sam has marked it as ready for review — post it to the team's PR thread
+   - Find today's PR thread: `~/.claude/slack-bot/pr-thread-cache.sh get` — if that exits non-zero, skip posting (don't block on this)
+   - Post using the PR title as the message: `~/.claude/slack-bot/post.sh --channel C08HQLZK3A7 --thread "$THREAD_TS" --text "{pr-title} - <{pr-url}|#{pr-number}>"`
+   - Append a work log entry: "PR marked as ready — posted to #team-trust-platform"
+   - Update your tracked draft state so you don't post again
+4. If **CI checks have failed** (any item in `statusCheckRollup` has `conclusion: FAILURE`):
+   - Read the failed check details: `gh pr checks {number}`
+   - Use the `bk` CLI to inspect Buildkite build steps and logs (e.g. `bk build view`, `bk step logs`)
+   - Investigate the failure — look at build logs, test output, linting errors, etc.
+   - Fix the issue in the code
+   - Commit and push with a descriptive conventional commit message
+   - Append a work log entry noting the CI failure and your fix
+5. If there are **new review comments or PR comments** since last check:
    - Read and understand the feedback
    - Make the requested changes in the code
    - Commit and push with a descriptive conventional commit message
    - Append a work log entry noting the review feedback and your response
-4. If the PR has been **closed** (not merged):
+6. If the PR has been **closed** (not merged):
    - Append a work log entry noting the PR was closed
    - Move the task to `queue/blocked/` with an explanation
    - Stop polling
-5. Otherwise, sleep ~15 seconds and check again
+7. Otherwise, sleep ~15 seconds and check again
 
-**Important:** Sam will mark the PR as "ready" after his initial review. Automated PR bots will then review the PR too, adding more comments/reviews. Stay alive to handle all rounds of feedback.
+**Important:** Sam will mark the PR as "ready" after his initial review. Automated PR bots will then review the PR too, adding more comments/reviews. CI checks (Buildkite) run on every push. Stay alive to handle all rounds of feedback — both human reviews and CI failures.
 
-## Step 9: Complete Task
+## Step 10: Complete Task
 
 Only reach this step when the PR has been merged.
 
@@ -123,7 +155,7 @@ Only reach this step when the PR has been merged.
    QA: {summary of qa results}
    ```
 4. Update `state.md` with the latest activity
-5. Clean up the worktree: `git -C {main-clone} worktree remove {worktree-path}`
+5. Do NOT clean up the worktree — leave it in place. Sam will clean up worktrees manually.
 
 ## Failure Handling
 
