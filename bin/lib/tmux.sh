@@ -21,21 +21,8 @@ ensure_session() {
     # Ensure architect window exists — a Claude session pre-loaded with project context
     if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^architect$'; then
         if [[ -n "${project_dir:-}" ]]; then
-            local architect_prompt="/tmp/autopilot-architect-${project_name}.txt"
-            cat > "$architect_prompt" <<'PROMPT'
-You are the project architect. Read the full project context so you are ready to help with planning, task creation, and questions.
-
-Read these files now:
-1. docs/plan.md — the master plan
-2. docs/milestones/ — all milestone definitions
-3. docs/adrs/ — all architectural decision records
-4. state.md — current project state
-5. queue/ — scan all directories (pending, approved, in-progress, waiting, done, blocked) to understand the current task landscape
-6. .claude/CLAUDE.md — project conventions
-
-After reading, confirm you're ready and give a brief summary of the project state. Then wait for my questions — I'll ask you things like "help me prepare a task for X" or "what's the status of Y".
-PROMPT
-            tmux new-window -t "${session}:" -n "architect" "cd '${project_dir}' && claude \"\$(cat '${architect_prompt}')\" ; rm -f '${architect_prompt}'; exec \$SHELL"
+            local skill_file="${project_dir}/.claude/commands/init-architect.md"
+            tmux new-window -t "${session}:" -n "architect" "cd '${project_dir}' && claude \"\$(cat '${skill_file}')\" ; exec \$SHELL"
         else
             tmux new-window -t "${session}:" -n "architect"
         fi
