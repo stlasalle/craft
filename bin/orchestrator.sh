@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/lib/notify.sh"
 
 # --- Configuration ---
 PROJECT_DIR=""
-MAX_PARALLEL=3
+MAX_PARALLEL=10
 POLL_INTERVAL=15  # seconds between queue checks
 PR_POLL_INTERVAL=120  # seconds between PR merge checks
 
