@@ -51,4 +51,4 @@ You are the qa-task skill. Your job is to review a completed task's PR and verif
 
 - Be thorough but practical — don't block on style nits
 - Focus on correctness, security, and meeting the acceptance criteria
-- If the task requires `qa_env` or `prod_validation`, note that these are pending Sam's review
+- If the task requires `qa_env` or `prod_validation`, note that these are pending {{OPERATOR_NAME}}'s review

@@ -67,13 +67,13 @@ pending/ → approved/ → in-progress/ → waiting/ → done/
 ```
 
 - **pending** — defined but not yet approved to run
-- **approved** — Sam has approved; orchestrator will pick these up
+- **approved** — operator has approved; orchestrator will pick these up
 - **in-progress** — an agent is actively working
 - **waiting** — agent has created a PR and is polling for review/CI feedback
 - **done** — PR merged
 - **blocked** — agent hit an unrecoverable error; needs human attention
 
-Agents in the `waiting` state stay alive. If Sam pushes review comments, fixes a CI failure, or marks the PR ready — the agent picks it up and responds.
+Agents in the `waiting` state stay alive. If the operator pushes review comments, fixes a CI failure, or marks the PR ready — the agent picks it up and responds.
 
 ### What an Agent Does (per task)
 
@@ -83,8 +83,8 @@ Agents in the `waiting` state stay alive. If Sam pushes review comments, fixes a
 4. Runs QA per the task's `qa:` spec (unit tests, integration tests, local validation)
 5. Creates a **draft** PR with conventional commit messages
 6. Self-reviews the diff before surfacing it
-7. Moves the task to `waiting/` and notifies Sam via Slack
-8. Polls the PR — responds to review comments, fixes CI failures, posts to the team thread when Sam marks it ready
+7. Moves the task to `waiting/` and notifies the operator via Slack
+8. Polls the PR — responds to review comments, fixes CI failures, posts to the team thread when the operator marks it ready
 9. Moves the task to `done/` when the PR merges
 
 ## Repo Structure
@@ -197,14 +197,14 @@ If an agent can't proceed (failed QA it can't fix, unresolvable error), it moves
 | `qa.unit_tests` | Run the repo's unit test suite |
 | `qa.integration_tests` | Run integration tests |
 | `qa.local_validation` | Shell command to run for validation |
-| `qa.qa_env` | Flag for Sam: requires QA environment validation |
-| `qa.prod_validation` | Flag for Sam: requires production validation |
+| `qa.qa_env` | Flag for operator: requires QA environment validation |
+| `qa.prod_validation` | Flag for operator: requires production validation |
 | `pr` | Added by the agent: URL of the created PR |
 
 ## Key Principles
 
 - **The project folder is the state machine.** Files on disk represent state. No external database. Everything is readable and editable with a text editor.
 - **Agents work in git worktrees.** Each task gets its own worktree under `worktrees/`, so multiple tasks can run in parallel against the same repo without conflicts.
-- **Sam reviews at two gates: task approval and PR merge.** Everything else is automated.
+- **You review at two gates: task approval and PR merge.** Everything else is automated.
 - **Agents never merge PRs.** They only create draft PRs, self-review, and respond to feedback.
 - **Blocked is safe.** If an agent can't proceed it stops and explains clearly rather than guessing or causing damage.

@@ -15,7 +15,7 @@ This repo contains the autopilot workflow system for orchestrating project work 
 
 ## Key Concepts
 
-- **The project folder is the state machine.** Files on disk represent state. Claude reads state, does work, writes new state. Sam reviews state transitions.
+- **The project folder is the state machine.** Files on disk represent state. Claude reads state, does work, writes new state. The operator reviews state transitions.
 - **Queue-based workflow.** Tasks flow through: `pending/` → `approved/` → `in-progress/` → `done/` → archived by consolidation.
 - **Tasks are markdown files with YAML frontmatter.** The frontmatter defines metadata (type, milestone, status, QA requirements). The body defines the work.
 - **Skills are Claude Code slash commands** in `.claude/commands/`. They read project state, do work, and write results back.
@@ -44,4 +44,4 @@ Provider launch logic lives in `bin/lib/providers.sh`. Add new providers by exte
 When modifying skills (templates/.claude/commands/), think about:
 1. What state does this skill read?
 2. What state does this skill write?
-3. What are the failure modes and how should they surface to Sam?
+3. What are the failure modes and how should they surface to the operator?

@@ -56,6 +56,10 @@ load_provider_config() {
         # shellcheck source=/dev/null
         source "$config_file"
     fi
+
+    # Resolve operator name: config > git > $USER
+    OPERATOR_NAME="${OPERATOR_NAME:-$(git config user.name 2>/dev/null || echo "${USER:-operator}")}"
+    export OPERATOR_NAME
 }
 
 # Get the agent provider for a specific task (task-level override or project default)

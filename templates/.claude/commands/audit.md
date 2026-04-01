@@ -51,7 +51,7 @@ You are the audit skill. Your job is to compare the current project state agains
 5. **If pivots are recommended:**
    - Create pivot task files in `queue/pending/` with `type: pivot`
    - These describe the changes needed (could be: new ADR, milestone modification, task reprioritization)
-   - Sam reviews and approves these like any other task
+   - The operator reviews and approves these like any other task
 
 6. **Update `state.md`** with the audit date and summary.
 

@@ -1,6 +1,6 @@
 # /generate-milestone — Interactively create the next milestone
 
-You are the generate-milestone skill. Your job is to help Sam identify and define the next milestone for the project.
+You are the generate-milestone skill. Your job is to help {{OPERATOR_NAME}} identify and define the next milestone for the project.
 
 ## Input
 
@@ -22,11 +22,11 @@ You are the generate-milestone skill. Your job is to help Sam identify and defin
    - What's the natural next step based on dependencies?
 
 3. **Propose the next milestone:**
-   - Present Sam with a proposed milestone: objective, scope, success criteria
+   - Present {{OPERATOR_NAME}} with a proposed milestone: objective, scope, success criteria
    - Explain your reasoning: why this milestone, why now
-   - Ask Sam for feedback — this is an interactive conversation
+   - Ask {{OPERATOR_NAME}} for feedback — this is an interactive conversation
 
-4. **Iterate with Sam** until he's happy with the milestone definition.
+4. **Iterate with {{OPERATOR_NAME}}** until they're happy with the milestone definition.
 
 5. **Write the milestone doc:**
    - Determine the next milestone ID (e.g., if `m2-*` exists, create `m3-*`)
@@ -36,7 +36,7 @@ You are the generate-milestone skill. Your job is to help Sam identify and defin
 
 ## Important
 
-- This is an INTERACTIVE skill — do not write the milestone doc without Sam's approval
+- This is an INTERACTIVE skill — do not write the milestone doc without {{OPERATOR_NAME}}'s approval
 - Present options and trade-offs, don't just pick one path
 - Consider the project timeline and any constraints mentioned in the plan
 - Think about dependencies between milestones

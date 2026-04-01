@@ -52,8 +52,8 @@ Read the `qa:` block from the task frontmatter and execute each enabled check:
 - **`unit_tests: true`** — Run the repo's unit test suite. If tests fail, fix the code. If you can't fix it, note the failure in the work log.
 - **`integration_tests: true`** — Run integration tests. Same approach as unit tests.
 - **`local_validation: "command"`** — Run the specified command and verify it succeeds. Log the output.
-- **`qa_env: true`** — Do NOT attempt this. Add a note to the work log: "QA environment validation required — flagged for Sam."
-- **`prod_validation: true`** — Do NOT attempt this. Add a note to the work log: "Production validation required — flagged for Sam."
+- **`qa_env: true`** — Do NOT attempt this. Add a note to the work log: "QA environment validation required — flagged for {{OPERATOR_NAME}}."
+- **`prod_validation: true`** — Do NOT attempt this. Add a note to the work log: "Production validation required — flagged for {{OPERATOR_NAME}}."
 
 If any automated QA step fails and you cannot fix it after 2 attempts:
 1. Move the task to `queue/blocked/`
@@ -71,13 +71,13 @@ If any automated QA step fails and you cannot fix it after 2 attempts:
      - Summary of changes
      - QA results (what passed, what's flagged for manual review)
      - Any notes or concerns
-   - Assign `stlasalle` as reviewer (`--reviewer stlasalle`)
+   - Assign `{{GITHUB_REVIEWER}}` as reviewer (`--reviewer {{GITHUB_REVIEWER}}`)
 4. Append the PR URL to the task's Work Log
 5. Update the task frontmatter to add `pr: {pr-url}`
 
 ## Step 7: Self-Review
 
-Before moving to waiting, review your own PR. This catches issues before Sam sees it.
+Before moving to waiting, review your own PR. This catches issues before the operator sees it.
 
 1. Get the full diff: `gh pr diff {number}`
 2. For each changed file, re-read the full file to check context
@@ -90,11 +90,11 @@ Before moving to waiting, review your own PR. This catches issues before Sam see
 4. If you find issues: fix them, commit, and push. Do NOT post review comments on your own PR.
 5. Append a brief self-review summary to the Work Log (what you checked, what you fixed if anything)
 
-**Important:** Do NOT post GitHub review comments. The Claude Code GitHub Action will run its own review when Sam marks the PR as ready — avoid duplicate comment spam.
+**Important:** Do NOT post GitHub review comments. The Claude Code GitHub Action will run its own review when the operator marks the PR as ready — avoid duplicate comment spam.
 
 ## Step 8: Move Task to Waiting
 
-After self-review, move the task to the waiting state so the orchestrator can notify Sam.
+After self-review, move the task to the waiting state so the orchestrator can notify {{OPERATOR_NAME}}.
 
 1. Update the task frontmatter: set `status: waiting`
 2. Move the file: `queue/in-progress/{task}.md` → `queue/waiting/{task}.md`
@@ -117,7 +117,7 @@ Track whether the PR is still a draft. Initially it will be `isDraft: true`.
    - Exit the polling loop
    - Proceed to Step 10 (Complete Task)
 3. If the PR was **previously a draft** but is now **no longer a draft** (`isDraft` changed from `true` to `false`):
-   - Sam has marked it as ready for review — post it to the team's PR thread
+   - The operator has marked it as ready for review — post it to the team's PR thread
    - Find today's PR thread: `~/.claude/slack-bot/pr-thread-cache.sh get` — if that exits non-zero, skip posting (don't block on this)
    - Post using the PR title as the message: `~/.claude/slack-bot/post.sh --channel C08HQLZK3A7 --thread "$THREAD_TS" --text "{pr-title} - <{pr-url}|#{pr-number}>"`
    - Append a work log entry: "PR marked as ready — posted to #team-trust-platform"
@@ -140,7 +140,7 @@ Track whether the PR is still a draft. Initially it will be `isDraft: true`.
    - Stop polling
 7. Otherwise, sleep ~15 seconds and check again
 
-**Important:** Sam will mark the PR as "ready" after his initial review. Automated PR bots will then review the PR too, adding more comments/reviews. CI checks (Buildkite) run on every push. Stay alive to handle all rounds of feedback — both human reviews and CI failures.
+**Important:** The operator will mark the PR as "ready" after their initial review. Automated PR bots will then review the PR too, adding more comments/reviews. CI checks (Buildkite) run on every push. Stay alive to handle all rounds of feedback — both human reviews and CI failures.
 
 ## Step 10: Complete Task
 
@@ -155,14 +155,14 @@ Only reach this step when the PR has been merged.
    QA: {summary of qa results}
    ```
 4. Update `state.md` with the latest activity
-5. Do NOT clean up the worktree — leave it in place. Sam will clean up worktrees manually.
+5. Do NOT clean up the worktree — leave it in place. The operator will clean up worktrees manually.
 
 ## Failure Handling
 
 If you hit an unrecoverable error at any point:
 1. Move the task to `queue/blocked/{task}.md`
 2. Set `status: blocked` in frontmatter
-3. Write a clear explanation in the Work Log: what you tried, what failed, what Sam needs to do
+3. Write a clear explanation in the Work Log: what you tried, what failed, what the operator needs to do
 4. Update `state.md` to reflect the blocked task
 
 ## Important Rules
@@ -172,7 +172,7 @@ If you hit an unrecoverable error at any point:
 - ALWAYS work in the worktree (`worktrees/{repo}-{task-id}/`), never in `repos/` or `~/code/`
 - ALWAYS read existing code before modifying it
 - ALWAYS run the QA checks specified in the task before creating the PR
-- ALWAYS update the Work Log as you go — this is Sam's audit trail
+- ALWAYS update the Work Log as you go — this is the operator's audit trail
 - ALWAYS use the branch name from the task's `branch:` frontmatter
 - ALWAYS use conventional commit messages (`feat:`, `fix:`, `refactor:`, etc.) — never prefix with task IDs
 - If the task's `depends_on` lists tasks that are NOT in `done/` or `archive/`, STOP and move the task to `blocked/` with an explanation

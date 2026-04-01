@@ -36,11 +36,11 @@ You are the split-milestone skill. Your job is to take a milestone definition an
    - Include clear acceptance criteria that Claude can verify
    - Include technical notes with relevant file paths and implementation hints
 
-6. **Present the task list to Sam** with a summary:
+6. **Present the task list to {{OPERATOR_NAME}}** with a summary:
    - Total number of tasks
    - Dependency graph (which tasks block which)
    - Estimated parallelism (how many tasks can run concurrently)
-   - Any tasks that need QA/prod validation (Sam's involvement required)
+   - Any tasks that need QA/prod validation ({{OPERATOR_NAME}}'s involvement required)
 
 7. **Update `state.md`** to reflect the new tasks.
 

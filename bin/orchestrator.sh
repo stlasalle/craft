@@ -102,7 +102,7 @@ render_dashboard() {
     echo -e "  ${BLUE}○${NC} Pending: $n_pending  ${YELLOW}◐${NC} Approved: $n_approved  ${CYAN}●${NC} In Progress: $n_in_progress  ${YELLOW}◉${NC} Waiting: $n_waiting  ${GREEN}✓${NC} Done: $n_done  ${RED}✗${NC} Blocked: $n_blocked"
     echo ""
 
-    # Waiting tasks — needs Sam's attention (PR review)
+    # Waiting tasks — needs operator attention (PR review)
     if [[ "$n_waiting" -gt 0 ]]; then
         echo -e "${BOLD}${YELLOW}  ◉ WAITING FOR REVIEW:${NC}"
         for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
