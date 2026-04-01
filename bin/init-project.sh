@@ -49,6 +49,9 @@ OPERATOR_NAME="${OPERATOR_NAME:-$(git config user.name 2>/dev/null || echo "${US
 # Resolve GitHub reviewer: explicit env var > gh CLI > empty
 GITHUB_REVIEWER="${GITHUB_REVIEWER:-$(gh api user -q .login 2>/dev/null || echo "")}"
 
+# Resolve branch prefix: explicit env var > empty
+BRANCH_PREFIX="${BRANCH_PREFIX:-}"
+
 # Ensure autopilot.conf exists (not a .template, just a default)
 if [[ ! -f "$PROJECT_DIR/autopilot.conf" ]]; then
     cp "$TEMPLATES_DIR/autopilot.conf" "$PROJECT_DIR/autopilot.conf"
@@ -59,18 +62,21 @@ sed -i '' "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_D
 if [[ -n "$GITHUB_REVIEWER" ]]; then
     sed -i '' "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/autopilot.conf"
 fi
+if [[ -n "$BRANCH_PREFIX" ]]; then
+    sed -i '' "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/autopilot.conf"
+fi
 
 # Replace placeholders in .template files
 for template in "$PROJECT_DIR"/docs/*.template "$PROJECT_DIR"/.claude/*.template "$PROJECT_DIR"/*.template; do
     [[ -f "$template" ]] || continue
     target="${template%.template}"
-    sed "s/{{PROJECT_NAME}}/$PROJECT_NAME/g; s/{{DATE}}/$DATE/g; s/{{TIMESTAMP}}/$DATE/g; s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g" "$template" > "$target"
+    sed "s/{{PROJECT_NAME}}/$PROJECT_NAME/g; s/{{DATE}}/$DATE/g; s/{{TIMESTAMP}}/$DATE/g; s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g; s|{{BRANCH_PREFIX}}|$BRANCH_PREFIX|g" "$template" > "$target"
     rm "$template"
 done
 
 # Replace placeholders in non-template files (skills, docs)
 find "$PROJECT_DIR" -name '*.md' -type f -exec \
-    sed -i '' "s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g" {} +
+    sed -i '' "s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g; s|{{BRANCH_PREFIX}}|$BRANCH_PREFIX|g" {} +
 
 echo ""
 echo "Project created at: $PROJECT_DIR"

@@ -33,6 +33,7 @@ You are the split-milestone skill. Your job is to take a milestone definition an
    - Use sequential IDs continuing from the highest existing task number
    - Follow the task template format exactly
    - Set `type: pr` for code tasks
+   - For the `branch:` field: if `BRANCH_PREFIX` is set in `autopilot.conf`, prepend it (e.g. `{{BRANCH_PREFIX}}feat/add-widget`). If not set, use a conventional branch name directly (e.g. `feat/add-widget`).
    - Include clear acceptance criteria that Claude can verify
    - Include technical notes with relevant file paths and implementation hints
 

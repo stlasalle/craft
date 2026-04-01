@@ -71,7 +71,7 @@ If any automated QA step fails and you cannot fix it after 2 attempts:
      - Summary of changes
      - QA results (what passed, what's flagged for manual review)
      - Any notes or concerns
-   - Assign `{{GITHUB_REVIEWER}}` as reviewer (`--reviewer {{GITHUB_REVIEWER}}`)
+   - If `GITHUB_REVIEWER` is set in `autopilot.conf`, assign them as reviewer (`--reviewer {{GITHUB_REVIEWER}}`). If blank, skip the `--reviewer` flag.
 4. Append the PR URL to the task's Work Log
 5. Update the task frontmatter to add `pr: {pr-url}`
 
@@ -117,15 +117,13 @@ Track whether the PR is still a draft. Initially it will be `isDraft: true`.
    - Exit the polling loop
    - Proceed to Step 10 (Complete Task)
 3. If the PR was **previously a draft** but is now **no longer a draft** (`isDraft` changed from `true` to `false`):
-   - The operator has marked it as ready for review — post it to the team's PR thread
-   - Find today's PR thread: `~/.claude/slack-bot/pr-thread-cache.sh get` — if that exits non-zero, skip posting (don't block on this)
-   - Post using the PR title as the message: `~/.claude/slack-bot/post.sh --channel C08HQLZK3A7 --thread "$THREAD_TS" --text "{pr-title} - <{pr-url}|#{pr-number}>"`
-   - Append a work log entry: "PR marked as ready — posted to #team-trust-platform"
+   - The operator has marked it as ready for review
+   - Run the `on_ready` plugin hook if available: `plugins/run-hook.sh on_ready --pr-url {pr-url} --pr-number {pr-number} --pr-title "{pr-title}"` (skip silently if the script doesn't exist)
+   - Append a work log entry: "PR marked as ready"
    - Update your tracked draft state so you don't post again
 4. If **CI checks have failed** (any item in `statusCheckRollup` has `conclusion: FAILURE`):
    - Read the failed check details: `gh pr checks {number}`
-   - Use the `bk` CLI to inspect Buildkite build steps and logs (e.g. `bk build view`, `bk step logs`)
-   - Investigate the failure — look at build logs, test output, linting errors, etc.
+   - Investigate the failure — look at CI build logs, test output, linting errors
    - Fix the issue in the code
    - Commit and push with a descriptive conventional commit message
    - Append a work log entry noting the CI failure and your fix
@@ -140,7 +138,7 @@ Track whether the PR is still a draft. Initially it will be `isDraft: true`.
    - Stop polling
 7. Otherwise, sleep ~15 seconds and check again
 
-**Important:** The operator will mark the PR as "ready" after their initial review. Automated PR bots will then review the PR too, adding more comments/reviews. CI checks (Buildkite) run on every push. Stay alive to handle all rounds of feedback — both human reviews and CI failures.
+**Important:** The operator will mark the PR as "ready" after their initial review. Automated PR bots will then review the PR too, adding more comments/reviews. CI checks run on every push. Stay alive to handle all rounds of feedback — both human reviews and CI failures.
 
 ## Step 10: Complete Task
 

@@ -95,7 +95,7 @@ bin/
   lib/
     queue.sh               # Queue read/write helpers
     tmux.sh                # tmux session/window management
-    notify.sh              # Slack notifications
+    notify.sh              # Lifecycle notifications (dispatches to plugins)
 templates/                 # Blueprint copied when initializing a new project
   .claude/commands/        # Skills (Claude Code slash commands)
     work-task.md           # Main agent skill — executes a task end-to-end
@@ -104,6 +104,9 @@ templates/                 # Blueprint copied when initializing a new project
     consolidate.md         # Archives a completed milestone
     qa-task.md             # Standalone QA review skill
     audit.md               # Project audit skill
+  plugins/                 # Optional integrations (Slack, CI, etc.)
+    run-hook.sh            # Hook dispatcher — calls enabled plugins
+    slack-daily-thread/    # Example plugin: post PRs to a Slack daily thread
   docs/
     plan.md.template       # Project plan template
     task.md.template       # Task file template
@@ -142,7 +145,7 @@ milestone: m1-foundation
 status: pending
 depends_on: []
 repos: [my-repo]
-branch: sls/TICKET-123/add-feature
+branch: feat/add-feature
 qa:
   unit_tests: true
   integration_tests: false
