@@ -43,6 +43,11 @@ mkdir -p "$PROJECT_DIR/repos"
 # Rename .template files to their actual names and replace placeholders
 DATE=$(date +%Y-%m-%d)
 
+# Ensure autopilot.conf exists (not a .template, just a default)
+if [[ ! -f "$PROJECT_DIR/autopilot.conf" ]]; then
+    cp "$TEMPLATES_DIR/autopilot.conf" "$PROJECT_DIR/autopilot.conf"
+fi
+
 for template in "$PROJECT_DIR"/docs/*.template "$PROJECT_DIR"/.claude/*.template "$PROJECT_DIR"/*.template; do
     [[ -f "$template" ]] || continue
     target="${template%.template}"

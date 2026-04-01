@@ -1,0 +1,6 @@
+# linear cli
+# https://github.com/schpet/linear-cli
+
+workspace = "linktree"
+team_id = "TRU"
+issue_sort = "priority"

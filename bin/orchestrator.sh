@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/queue.sh"
 source "$SCRIPT_DIR/lib/tmux.sh"
 source "$SCRIPT_DIR/lib/notify.sh"
+source "$SCRIPT_DIR/lib/providers.sh"
 
 # --- Configuration ---
 PROJECT_DIR=""
@@ -59,8 +60,12 @@ for dir in approved in-progress done blocked archive waiting; do
 done
 mkdir -p "$PROJECT_DIR/worktrees"
 
+# Load agent provider config (sets DEFAULT_AGENT, ARCHITECT_AGENT)
+load_provider_config "$PROJECT_DIR"
+
 # --- State tracking ---
 declare -A ACTIVE_TASKS=()  # task_id -> tmux window name
+declare -A TASK_AGENTS=()   # task_id -> agent provider (claude, codex, etc.)
 declare -A TASK_PR_URLS=()  # task_id -> PR URL (for merge monitoring)
 
 # --- Display ---
@@ -128,7 +133,8 @@ render_dashboard() {
     if [[ ${#ACTIVE_TASKS[@]} -gt 0 ]]; then
         echo -e "${BOLD}  Active Tasks:${NC}"
         for task_id in "${!ACTIVE_TASKS[@]}"; do
-            echo -e "    ${CYAN}●${NC} $task_id  [tmux window: ${ACTIVE_TASKS[$task_id]}]"
+            local agent_label="${TASK_AGENTS[$task_id]:-$DEFAULT_AGENT}"
+            echo -e "    ${CYAN}●${NC} $task_id  [${agent_label}] [tmux: ${ACTIVE_TASKS[$task_id]}]"
         done
         echo ""
     fi
@@ -163,7 +169,7 @@ render_dashboard() {
     # Footer
     local now
     now=$(date '+%H:%M:%S')
-    echo -e "  ${BOLD}Last poll:${NC} $now  ${BOLD}Parallel limit:${NC} $MAX_PARALLEL  ${BOLD}Poll interval:${NC} ${POLL_INTERVAL}s"
+    echo -e "  ${BOLD}Last poll:${NC} $now  ${BOLD}Parallel limit:${NC} $MAX_PARALLEL  ${BOLD}Poll interval:${NC} ${POLL_INTERVAL}s  ${BOLD}Agent:${NC} $DEFAULT_AGENT"
     echo -e "  ${BOLD}Ctrl+C${NC} to stop orchestrator"
 }
 
@@ -193,16 +199,21 @@ run_task() {
         sed "s/\\\$ARGUMENTS/$filename/g" "$skill_file"
     } > "$prompt_file"
 
+    # Determine which agent provider to use (task-level override or project default)
+    local agent
+    agent=$(task_agent "$new_file")
+
     # Get the tmux session
     local session
-    session=$(ensure_session "$PROJECT_NAME")
+    session=$(ensure_session "$PROJECT_NAME" "$PROJECT_DIR")
 
-    # Spawn an interactive claude session in a tmux window (no -p flag, so TUI is visible)
+    # Spawn an agent session in a tmux window
     local window
-    window=$(spawn_task_pane "$session" "$tid" "$prompt_file" "$PROJECT_DIR")
+    window=$(spawn_task_pane "$session" "$tid" "$prompt_file" "$PROJECT_DIR" "$agent")
 
     # Track it
     ACTIVE_TASKS["$tid"]="$window"
+    TASK_AGENTS["$tid"]="$agent"
 }
 
 # Find a task file by task ID across queue directories
@@ -227,6 +238,7 @@ check_active_tasks() {
         if ! pane_is_running "$session" "$tid"; then
             echo "[$(date '+%H:%M:%S')] Task $tid session ended"
             unset ACTIVE_TASKS["$tid"]
+            unset TASK_AGENTS["$tid"]
 
             # Check where the task ended up
             if find_task_in "$QUEUE_DIR/done" "$tid" > /dev/null; then

@@ -4,11 +4,11 @@
 # Session name for the orchestrator
 TMUX_SESSION="autopilot"
 
-# Ensure the tmux session exists, with orchestrator + planner windows
+# Ensure the tmux session exists, with orchestrator + architect windows
 # Returns the session name
 ensure_session() {
     local project_name="$1"
-    local project_dir="$2"  # optional — used to cd the planner window
+    local project_dir="$2"  # optional — used to cd the architect window
     local session="${TMUX_SESSION}-${project_name}"
 
     if ! tmux has-session -t "$session" 2>/dev/null; then
@@ -18,11 +18,14 @@ ensure_session() {
         tmux set-option -t "${session}:orchestrator" monitor-activity off 2>/dev/null || true
     fi
 
-    # Ensure architect window exists — a Claude session pre-loaded with project context
+    # Ensure architect window exists — an agent session pre-loaded with project context
     if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^architect$'; then
         if [[ -n "${project_dir:-}" ]]; then
             local skill_file="${project_dir}/.claude/commands/init-architect.md"
-            tmux new-window -t "${session}:" -n "architect" "cd '${project_dir}' && claude \"\$(cat '${skill_file}')\" ; exec \$SHELL"
+            local architect_agent="${ARCHITECT_AGENT:-claude}"
+            local cmd
+            cmd=$(provider_architect_cmd "$architect_agent" "$skill_file" "$project_dir")
+            tmux new-window -t "${session}:" -n "architect" "$cmd"
         else
             tmux new-window -t "${session}:" -n "architect"
         fi
@@ -32,14 +35,14 @@ ensure_session() {
     echo "$session"
 }
 
-# Create a new pane for a task and run a command in it
-# Returns the pane ID
+# Create a new window for a task and run the agent in it
+# Returns the window ID
 spawn_task_pane() {
     local session="$1" task_id="$2" prompt_file="$3" work_dir="$4"
+    local agent="${5:-claude}"
 
-    # tmux new-window runs via sh -c; use interactive claude (no -p) so TUI is visible
-    # Following the pattern from slack-bot/listener.js
-    local cmd="cd '${work_dir}' && claude \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'; exec \$SHELL"
+    local cmd
+    cmd=$(provider_task_cmd "$agent" "$prompt_file" "$work_dir")
 
     local window_id
     window_id=$(tmux new-window -t "${session}:" -n "$task_id" -P -F '#{window_id}' "$cmd")
