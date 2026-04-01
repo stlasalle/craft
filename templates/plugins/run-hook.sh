@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load project config for PLUGINS list
-CONFIG_FILE="$PROJECT_DIR/autopilot.conf"
+CONFIG_FILE="$PROJECT_DIR/craft.conf"
 PLUGINS="${PLUGINS:-}"
 if [[ -f "$CONFIG_FILE" ]]; then
     # shellcheck source=/dev/null

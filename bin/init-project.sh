@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# init-project.sh — Scaffold a new autopilot project instance
+# init-project.sh — Scaffold a new craft project instance
 #
 # Usage: init-project.sh <project-name>
 #
 # Creates a new project folder in projects/<project-name> by copying
 # the templates/ structure and replacing placeholders.
 
-AUTOPILOT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TEMPLATES_DIR="$AUTOPILOT_ROOT/templates"
-PROJECTS_DIR="$AUTOPILOT_ROOT/projects"
+CRAFT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TEMPLATES_DIR="$CRAFT_ROOT/templates"
+PROJECTS_DIR="$CRAFT_ROOT/projects"
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <project-name>"
@@ -52,18 +52,18 @@ GITHUB_REVIEWER="${GITHUB_REVIEWER:-$(gh api user -q .login 2>/dev/null || echo 
 # Resolve branch prefix: explicit env var > empty
 BRANCH_PREFIX="${BRANCH_PREFIX:-}"
 
-# Ensure autopilot.conf exists (not a .template, just a default)
-if [[ ! -f "$PROJECT_DIR/autopilot.conf" ]]; then
-    cp "$TEMPLATES_DIR/autopilot.conf" "$PROJECT_DIR/autopilot.conf"
+# Ensure craft.conf exists (not a .template, just a default)
+if [[ ! -f "$PROJECT_DIR/craft.conf" ]]; then
+    cp "$TEMPLATES_DIR/craft.conf" "$PROJECT_DIR/craft.conf"
 fi
 
 # Set resolved values in project config
-sed -i '' "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_DIR/autopilot.conf"
+sed -i '' "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_DIR/craft.conf"
 if [[ -n "$GITHUB_REVIEWER" ]]; then
-    sed -i '' "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/autopilot.conf"
+    sed -i '' "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/craft.conf"
 fi
 if [[ -n "$BRANCH_PREFIX" ]]; then
-    sed -i '' "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/autopilot.conf"
+    sed -i '' "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/craft.conf"
 fi
 
 # Replace placeholders in .template files

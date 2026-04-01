@@ -1,33 +1,33 @@
-# Autopilot
+# Craft
 
 A project orchestration system that runs Claude Code agents autonomously against a queue of tasks, manages their lifecycle, and surfaces work for human review at the right moments.
 
 ## Quick Start
 
-### 1. Set up the `orc` CLI
+### 1. Set up the `craft` CLI
 
 Create a small wrapper script and put it on your PATH:
 
 ```bash
-cat > ~/.local/bin/orc << 'EOF'
+cat > ~/.local/bin/craft << 'EOF'
 #!/usr/bin/env bash
-# orc — shortcut for autopilot orchestrator
-# Usage: orc <project-name> [--max-parallel N] [--poll-interval SECONDS]
+# craft — project orchestrator CLI
+# Usage: craft <project-name> [--max-parallel N] [--poll-interval SECONDS]
 
-PROJECT_NAME="${1:?Usage: orc <project-name>}"
+PROJECT_NAME="${1:?Usage: craft <project-name>}"
 shift
-PROJECT_DIR="$HOME/autopilot/projects/$PROJECT_NAME"
+PROJECT_DIR="$HOME/craft/projects/$PROJECT_NAME"
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
     echo "Project not found: $PROJECT_DIR"
     echo "Available projects:"
-    ls "$HOME/autopilot/projects/" 2>/dev/null
+    ls "$HOME/craft/projects/" 2>/dev/null
     exit 1
 fi
 
-exec "$HOME/autopilot/bin/orchestrator.sh" "$PROJECT_DIR" "$@"
+exec "$HOME/craft/bin/orchestrator.sh" "$PROJECT_DIR" "$@"
 EOF
-chmod +x ~/.local/bin/orc
+chmod +x ~/.local/bin/craft
 ```
 
 Make sure `~/.local/bin` is in your `PATH` (add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile if needed).
@@ -35,7 +35,7 @@ Make sure `~/.local/bin` is in your `PATH` (add `export PATH="$HOME/.local/bin:$
 ### 2. Create a new project
 
 ```bash
-~/autopilot/bin/init-project.sh my-project
+~/craft/bin/init-project.sh my-project
 ```
 
 This scaffolds `projects/my-project/` from the templates, with a project plan, queue directories, and Claude skills pre-installed. Then:
@@ -46,7 +46,7 @@ This scaffolds `projects/my-project/` from the templates, with a project plan, q
 ### 3. Start the orchestrator
 
 ```bash
-orc my-project
+craft my-project
 ```
 
 This opens a tmux session with the orchestrator dashboard. Approve tasks by moving them from `queue/pending/` to `queue/approved/` — the orchestrator picks them up and starts agents automatically.
@@ -55,7 +55,7 @@ This opens a tmux session with the orchestrator dashboard. Approve tasks by movi
 
 ## What It Does
 
-Autopilot lets you define a software project as a set of structured tasks, then runs them in parallel using Claude Code — each agent working in its own isolated git worktree, creating a draft PR, running QA, self-reviewing, and monitoring CI and review feedback until the PR merges.
+Craft lets you define a software project as a set of structured tasks, then runs them in parallel using Claude Code — each agent working in its own isolated git worktree, creating a draft PR, running QA, self-reviewing, and monitoring CI and review feedback until the PR merges.
 
 You approve tasks before they run. You review PRs before they merge. Everything in between is automated.
 
@@ -83,8 +83,8 @@ Agents in the `waiting` state stay alive. If the operator pushes review comments
 4. Runs QA per the task's `qa:` spec (unit tests, integration tests, local validation)
 5. Creates a **draft** PR with conventional commit messages
 6. Self-reviews the diff before surfacing it
-7. Moves the task to `waiting/` and notifies the operator via Slack
-8. Polls the PR — responds to review comments, fixes CI failures, posts to the team thread when the operator marks it ready
+7. Moves the task to `waiting/` and notifies the operator (via plugins, if configured)
+8. Polls the PR — responds to review comments, fixes CI failures, and reacts when the operator marks it ready
 9. Moves the task to `done/` when the PR merges
 
 ## Repo Structure

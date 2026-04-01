@@ -46,7 +46,7 @@ provider_architect_cmd() {
 # Sets: DEFAULT_AGENT, ARCHITECT_AGENT
 load_provider_config() {
     local project_dir="$1"
-    local config_file="$project_dir/autopilot.conf"
+    local config_file="$project_dir/craft.conf"
 
     # Defaults
     DEFAULT_AGENT="${DEFAULT_AGENT:-claude}"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# tmux.sh — Tmux pane management for the autopilot orchestrator
+# tmux.sh — Tmux pane management for the craft orchestrator
 
 # Session name for the orchestrator
-TMUX_SESSION="autopilot"
+TMUX_SESSION="craft"
 
 # Ensure the tmux session exists, with orchestrator + architect windows
 # Returns the session name
@@ -77,6 +77,6 @@ update_orchestrator_display() {
     local session="$1" status_text="$2"
 
     # Write status to a temp file that the orchestrator pane reads
-    local status_file="/tmp/autopilot-${session}-status"
+    local status_file="/tmp/craft-${session}-status"
     echo "$status_text" > "$status_file"
 }

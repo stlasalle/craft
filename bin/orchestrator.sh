@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# orchestrator.sh — Persistent daemon that processes the autopilot task queue
+# orchestrator.sh — Persistent daemon that processes the craft task queue
 #
 # Usage: orchestrator.sh <project-dir> [--max-parallel N]
 #
@@ -86,7 +86,7 @@ render_dashboard() {
     clear_screen
 
     echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}║  AUTOPILOT ORCHESTRATOR — ${CYAN}${PROJECT_NAME}${NC}${BOLD}$(printf '%*s' $((24 - ${#PROJECT_NAME})) '')║${NC}"
+    echo -e "${BOLD}║  CRAFT ORCHESTRATOR — ${CYAN}${PROJECT_NAME}${NC}${BOLD}$(printf '%*s' $((28 - ${#PROJECT_NAME})) '')║${NC}"
     echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -192,7 +192,7 @@ run_task() {
     # Read the skill template and substitute $ARGUMENTS
     # Prepend a note that the task has already been moved to in-progress by the orchestrator
     local skill_file="$PROJECT_DIR/.claude/commands/work-task.md"
-    local prompt_file="/tmp/autopilot-prompt-${tid}.txt"
+    local prompt_file="/tmp/craft-prompt-${tid}.txt"
     {
         echo "NOTE: The orchestrator has already moved this task to queue/in-progress/${filename} and set its status to in-progress. Skip Step 2 (Move Task to In-Progress) — start from Step 1 (read context) then go straight to Step 3 (do the work)."
         echo ""
@@ -300,7 +300,7 @@ check_milestone_completion() {
 # Check for new tasks in waiting state and notify
 # Uses a marker file per task to survive orchestrator restarts
 check_waiting_tasks() {
-    local marker_dir="/tmp/autopilot-waiting-${PROJECT_NAME}"
+    local marker_dir="/tmp/craft-waiting-${PROJECT_NAME}"
     mkdir -p "$marker_dir"
     for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
         local tid
@@ -334,7 +334,7 @@ if [[ -z "${TMUX:-}" ]] || [[ "$(tmux display-message -p '#{session_name}' 2>/de
     exec tmux attach -t "$SESSION"
 fi
 
-echo "Autopilot orchestrator starting for: $PROJECT_DIR"
+echo "Craft orchestrator starting for: $PROJECT_DIR"
 echo "Max parallel tasks: $MAX_PARALLEL"
 echo "Poll interval: ${POLL_INTERVAL}s"
 echo ""

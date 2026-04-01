@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# notify.sh — Notification helpers for the autopilot orchestrator
+# notify.sh — Notification helpers for the craft orchestrator
 #
 # Dispatches lifecycle events to the plugin system and optionally plays
 # a tmux bell for attention.

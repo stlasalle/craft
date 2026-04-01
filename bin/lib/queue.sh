@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# queue.sh — Queue manipulation helpers for the autopilot orchestrator
+# queue.sh — Queue manipulation helpers for the craft orchestrator
 
 # Get the value of a YAML frontmatter field from a task file
 # Usage: task_field <file> <field>

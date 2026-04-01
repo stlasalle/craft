@@ -1,6 +1,6 @@
 # Plugins
 
-Plugins extend autopilot with optional integrations for notifications, CI, and other external services.
+Plugins extend craft with optional integrations for notifications, CI, and other external services.
 
 ## How It Works
 
@@ -13,7 +13,7 @@ The `run-hook.sh` dispatcher is called by agent skills at key lifecycle moments.
 
 ## Enabling Plugins
 
-In `autopilot.conf`, set the `PLUGINS` variable to a comma-separated list:
+In `craft.conf`, set the `PLUGINS` variable to a comma-separated list:
 
 ```bash
 PLUGINS=slack-daily-thread
@@ -36,6 +36,6 @@ Then configure the plugin by editing its `plugin.conf`.
 1. Create a directory: `plugins/my-plugin/`
 2. Add `plugin.conf` with any required configuration
 3. Add `hooks.sh` implementing the hooks you need
-4. Enable it in `autopilot.conf`: `PLUGINS=my-plugin`
+4. Enable it in `craft.conf`: `PLUGINS=my-plugin`
 
 Hooks run in subshells — plugins can't interfere with each other or the main process.

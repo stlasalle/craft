@@ -1,6 +1,6 @@
-# Autopilot — Project Orchestration System
+# Craft — Project Orchestration System
 
-This repo contains the autopilot workflow system for orchestrating project work through Claude Code.
+This repo contains the craft workflow system for orchestrating project work through Claude Code.
 
 ## Repo Structure
 
@@ -25,10 +25,10 @@ This repo contains the autopilot workflow system for orchestrating project work 
 
 The system is model-agnostic. Any CLI agent that accepts a prompt as its first argument can be used.
 
-- **Project default** — set in `autopilot.conf` (`DEFAULT_AGENT=claude`, `ARCHITECT_AGENT=claude`)
+- **Project default** — set in `craft.conf` (`DEFAULT_AGENT=claude`, `ARCHITECT_AGENT=claude`)
 - **Task override** — set `agent:` in task YAML frontmatter (e.g. `agent: codex`)
-- **CLI override** — `orc <project> --agent codex` (one-off, overrides both)
-- **Persistent config** — `orc config <project> agent codex`
+- **CLI override** — `craft <project> --agent codex` (one-off, overrides both)
+- **Persistent config** — `craft config <project> agent codex`
 
 Provider launch logic lives in `bin/lib/providers.sh`. Add new providers by extending the case statements there.
 

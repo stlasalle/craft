@@ -71,7 +71,7 @@ If any automated QA step fails and you cannot fix it after 2 attempts:
      - Summary of changes
      - QA results (what passed, what's flagged for manual review)
      - Any notes or concerns
-   - If `GITHUB_REVIEWER` is set in `autopilot.conf`, assign them as reviewer (`--reviewer {{GITHUB_REVIEWER}}`). If blank, skip the `--reviewer` flag.
+   - If `GITHUB_REVIEWER` is set in `craft.conf`, assign them as reviewer (`--reviewer {{GITHUB_REVIEWER}}`). If blank, skip the `--reviewer` flag.
 4. Append the PR URL to the task's Work Log
 5. Update the task frontmatter to add `pr: {pr-url}`
 

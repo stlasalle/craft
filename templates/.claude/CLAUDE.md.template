@@ -1,6 +1,6 @@
 # Project: {{PROJECT_NAME}}
 
-You are working inside an autopilot-managed project workspace.
+You are working inside a craft-managed project workspace.
 The folder structure IS the project state — read it to understand what's happening.
 
 ## How To Work Here
@@ -26,7 +26,7 @@ The folder structure IS the project state — read it to understand what's happe
 - PRs must be **draft PRs** — {{OPERATOR_NAME}} marks them ready after review
 - PR titles reference the task ID: `[task-042] Add ContentFlagEvent handler`
 - Never merge — only create PRs for {{OPERATOR_NAME}} to review
-- If `GITHUB_REVIEWER` is configured in `autopilot.conf`, assign them as reviewer on all PRs (`--reviewer {{GITHUB_REVIEWER}}`)
+- If `GITHUB_REVIEWER` is configured in `craft.conf`, assign them as reviewer on all PRs (`--reviewer {{GITHUB_REVIEWER}}`)
 - If blocked, move the task to `queue/blocked/` and explain why in the file
 - Commit messages should be clear and reference the task ID
 
