@@ -184,9 +184,10 @@ run_task() {
 
     echo "[$(date '+%H:%M:%S')] Starting task: $tid"
 
-    # Move to in-progress
+    # Move to in-progress and notify plugins
     local new_file
     new_file=$(move_task "$task_file" "$QUEUE_DIR/in-progress" "in-progress")
+    notify_started "$tid"
 
     # Build the prompt file
     # Read the skill template and substitute $ARGUMENTS
@@ -344,6 +345,9 @@ trap 'echo ""; echo "Orchestrator stopped."; exit 0' INT TERM
 poll_count=0
 
 while true; do
+    # Run plugin poll hooks (e.g. linear-sync inbound)
+    _run_hook on_poll 2>/dev/null || true
+
     # Check finished tasks
     check_active_tasks
 

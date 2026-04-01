@@ -25,6 +25,12 @@ _tmux_bell() {
     fi
 }
 
+# Notify that a task has started
+notify_started() {
+    local task_id="$1"
+    _run_hook on_started --task-id "$task_id"
+}
+
 # Notify about a blocked task
 notify_blocked() {
     local task_id="$1" reason="$2"

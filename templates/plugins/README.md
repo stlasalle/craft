@@ -25,6 +25,8 @@ Then configure the plugin by editing its `plugin.conf`.
 
 | Hook | When | Arguments |
 |---|---|---|
+| `on_poll` | Each orchestrator poll cycle | *(none)* |
+| `on_started` | Task started (moved to in-progress) | `--task-id ID` |
 | `on_waiting` | Task moved to waiting (PR created) | `--task-id ID --pr-url URL` |
 | `on_ready` | PR marked as ready (draft → ready) | `--pr-url URL --pr-number N --pr-title TITLE` |
 | `on_done` | Task completed (PR merged) | `--task-id ID --pr-url URL` |
