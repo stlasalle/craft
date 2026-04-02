@@ -71,7 +71,7 @@ move_task() {
     local target="$target_dir/$filename"
 
     # Update status in frontmatter
-    sed -i '' "s/^status:.*/status: $new_status/" "$file"
+    sed -i "s/^status:.*/status: $new_status/" "$file"
 
     # Move the file
     mv "$file" "$target"

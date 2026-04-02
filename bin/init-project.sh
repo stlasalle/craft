@@ -58,12 +58,12 @@ if [[ ! -f "$PROJECT_DIR/craft.conf" ]]; then
 fi
 
 # Set resolved values in project config
-sed -i '' "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_DIR/craft.conf"
+sed -i "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_DIR/craft.conf"
 if [[ -n "$GITHUB_REVIEWER" ]]; then
-    sed -i '' "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/craft.conf"
+    sed -i "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/craft.conf"
 fi
 if [[ -n "$BRANCH_PREFIX" ]]; then
-    sed -i '' "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/craft.conf"
+    sed -i "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/craft.conf"
 fi
 
 # Replace placeholders in .template files
@@ -76,7 +76,7 @@ done
 
 # Replace placeholders in non-template files (skills, docs)
 find "$PROJECT_DIR" -name '*.md' -type f -exec \
-    sed -i '' "s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g; s|{{BRANCH_PREFIX}}|$BRANCH_PREFIX|g" {} +
+    sed -i "s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g; s|{{BRANCH_PREFIX}}|$BRANCH_PREFIX|g" {} +
 
 echo ""
 echo "Project created at: $PROJECT_DIR"

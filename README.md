@@ -6,26 +6,116 @@ A project orchestration system that runs Claude Code agents autonomously against
 
 ### 1. Set up the `craft` CLI
 
-Create a small wrapper script and put it on your PATH:
+Create a wrapper script and put it on your PATH:
 
 ```bash
+mkdir -p ~/.local/bin
 cat > ~/.local/bin/craft << 'EOF'
 #!/usr/bin/env bash
 # craft — project orchestrator CLI
-# Usage: craft <project-name> [--max-parallel N] [--poll-interval SECONDS]
 
-PROJECT_NAME="${1:?Usage: craft <project-name>}"
-shift
-PROJECT_DIR="$HOME/craft/projects/$PROJECT_NAME"
+CRAFT_ROOT="$HOME/craft"
 
-if [[ ! -d "$PROJECT_DIR" ]]; then
-    echo "Project not found: $PROJECT_DIR"
-    echo "Available projects:"
-    ls "$HOME/craft/projects/" 2>/dev/null
-    exit 1
+usage() {
+    cat << 'USAGE'
+craft — project orchestrator CLI
+
+Usage:
+  craft init <project-name>              Scaffold a new project
+  craft <project-name> [options]         Start the orchestrator for a project
+  craft config <project-name> [k] [v]   Read or set project config
+  craft --help                           Show this help
+
+Orchestrator options:
+  --max-parallel N       Max parallel agents (default: 10)
+  --poll-interval SECS   Queue poll interval (default: 15)
+
+Config keys (stored in projects/<name>/craft.conf):
+  DEFAULT_AGENT          Agent CLI for task execution  (default: claude)
+  ARCHITECT_AGENT        Agent CLI for architect pane  (default: claude)
+  OPERATOR_NAME          Your name, used in prompts
+  GITHUB_REVIEWER        GitHub username for PR review
+  BRANCH_PREFIX          Branch prefix e.g. "sls/"
+  PLUGINS                Comma-separated plugins e.g. "slack-daily-thread"
+
+Examples:
+  craft init my-project
+  craft my-project
+  craft config my-project DEFAULT_AGENT codex
+  craft config my-project ARCHITECT_AGENT claude
+  craft config my-project                        # show all config
+
+Projects are stored in ~/craft/projects/.
+USAGE
+}
+
+cmd_config() {
+    local project_name="${1:-}"
+    if [[ -z "$project_name" ]]; then
+        echo "Usage: craft config <project-name> [key] [value]"
+        exit 1
+    fi
+
+    local conf="$CRAFT_ROOT/projects/$project_name/craft.conf"
+    if [[ ! -f "$conf" ]]; then
+        echo "Project not found: $CRAFT_ROOT/projects/$project_name"
+        exit 1
+    fi
+
+    local key="${2:-}"
+    local value="${3:-}"
+
+    if [[ -z "$key" ]]; then
+        echo "Config for $project_name ($conf):"
+        grep -v '^#' "$conf" | grep -v '^[[:space:]]*$'
+        return
+    fi
+
+    if [[ -z "$value" ]]; then
+        grep "^${key}=" "$conf" | sed "s/^${key}=//"
+        return
+    fi
+
+    if grep -q "^${key}=" "$conf" || grep -q "^# ${key}=" "$conf"; then
+        sed -i "s|^#\? *${key}=.*|${key}=${value}|" "$conf"
+    else
+        echo "${key}=${value}" >> "$conf"
+    fi
+    echo "Set ${key}=${value} in $project_name"
+}
+
+if [[ $# -eq 0 ]] || [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+    usage
+    exit 0
 fi
 
-exec "$HOME/craft/bin/orchestrator.sh" "$PROJECT_DIR" "$@"
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+    init)
+        exec "$CRAFT_ROOT/bin/init-project.sh" "$@"
+        ;;
+    config)
+        cmd_config "$@"
+        ;;
+    *)
+        PROJECT_NAME="$SUBCOMMAND"
+        PROJECT_DIR="$CRAFT_ROOT/projects/$PROJECT_NAME"
+
+        if [[ ! -d "$PROJECT_DIR" ]]; then
+            echo "Project not found: $PROJECT_DIR"
+            echo ""
+            echo "Available projects:"
+            ls "$CRAFT_ROOT/projects/" 2>/dev/null || echo "  (none)"
+            echo ""
+            echo "Create one with: craft init $PROJECT_NAME"
+            exit 1
+        fi
+
+        exec "$CRAFT_ROOT/bin/orchestrator.sh" "$PROJECT_DIR" "$@"
+        ;;
+esac
 EOF
 chmod +x ~/.local/bin/craft
 ```
@@ -35,7 +125,7 @@ Make sure `~/.local/bin` is in your `PATH` (add `export PATH="$HOME/.local/bin:$
 ### 2. Create a new project
 
 ```bash
-~/craft/bin/init-project.sh my-project
+craft init my-project
 ```
 
 This scaffolds `projects/my-project/` from the templates, with a project plan, queue directories, and Claude skills pre-installed. Then:
