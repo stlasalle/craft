@@ -21,10 +21,14 @@ usage() {
 craft — project orchestrator CLI
 
 Usage:
-  craft init <project-name>              Scaffold a new project
-  craft <project-name> [options]         Start the orchestrator for a project
-  craft config <project-name> [k] [v]   Read or set project config
-  craft --help                           Show this help
+  craft init <project-name>                     Scaffold a new project
+  craft <project-name> [options]                Start the orchestrator for a project
+  craft config <project-name> [k] [v]           Read or set project config
+  craft plugin list                             Show available plugins
+  craft plugin add <project> <plugin>           Install a plugin into a project
+  craft plugin set <project> <plugin> <k> <v>  Set a plugin config value
+  craft plugin show <project> <plugin>          Show a plugin's current config
+  craft --help                                  Show this help
 
 Orchestrator options:
   --max-parallel N       Max parallel agents (default: 10)
@@ -36,14 +40,17 @@ Config keys (stored in projects/<name>/craft.conf):
   OPERATOR_NAME          Your name, used in prompts
   GITHUB_REVIEWER        GitHub username for PR review
   BRANCH_PREFIX          Branch prefix e.g. "sls/"
-  PLUGINS                Comma-separated plugins e.g. "slack-daily-thread"
+  PLUGINS                Comma-separated list of enabled plugins
 
 Examples:
   craft init my-project
   craft my-project
   craft config my-project DEFAULT_AGENT codex
-  craft config my-project ARCHITECT_AGENT claude
-  craft config my-project                        # show all config
+  craft plugin list
+  craft plugin add my-project slack-dm-notify
+  craft plugin set my-project slack-dm-notify SLACK_BOT_TOKEN xoxb-...
+  craft plugin set my-project slack-dm-notify SLACK_USER_ID U01ABC123
+  craft plugin show my-project slack-dm-notify
 
 Projects are stored in ~/craft/projects/.
 USAGE
@@ -84,6 +91,122 @@ cmd_config() {
     echo "Set ${key}=${value} in $project_name"
 }
 
+_plugins_enable() {
+    local conf="$1" plugin="$2"
+    local current
+    current=$(grep "^PLUGINS=" "$conf" | sed 's/^PLUGINS=//' | tr -d '"' || echo "")
+    if [[ -z "$current" ]]; then
+        if grep -q "^# PLUGINS=" "$conf"; then
+            sed -i "s|^# PLUGINS=.*|PLUGINS=$plugin|" "$conf"
+        else
+            echo "PLUGINS=$plugin" >> "$conf"
+        fi
+    else
+        if echo "$current" | tr ',' '\n' | grep -qx "$plugin"; then
+            return 0
+        fi
+        sed -i "s|^PLUGINS=.*|PLUGINS=${current},$plugin|" "$conf"
+    fi
+}
+
+cmd_plugin() {
+    local subcmd="${1:-}"
+    shift || true
+
+    case "$subcmd" in
+        list)
+            echo "Available plugins (in ~/craft/templates/plugins/):"
+            for d in "$CRAFT_ROOT/templates/plugins"/*/; do
+                local name
+                name=$(basename "$d")
+                [[ "$name" == "README.md" ]] && continue
+                local desc=""
+                if [[ -f "$d/hooks.sh" ]]; then
+                    desc=$(grep '^#' "$d/hooks.sh" | grep -v '^#!/' | head -1 | sed 's/^# *//')
+                fi
+                printf "  %-24s %s\n" "$name" "$desc"
+            done
+            ;;
+
+        add)
+            local project_name="${1:-}" plugin_name="${2:-}"
+            if [[ -z "$project_name" || -z "$plugin_name" ]]; then
+                echo "Usage: craft plugin add <project-name> <plugin-name>"
+                exit 1
+            fi
+            local project_dir="$CRAFT_ROOT/projects/$project_name"
+            if [[ ! -d "$project_dir" ]]; then
+                echo "Project not found: $project_dir"
+                exit 1
+            fi
+            local template_dir="$CRAFT_ROOT/templates/plugins/$plugin_name"
+            if [[ ! -d "$template_dir" ]]; then
+                echo "Plugin not found: $template_dir"
+                echo "Run 'craft plugin list' to see available plugins."
+                exit 1
+            fi
+            local dest_dir="$project_dir/plugins/$plugin_name"
+            if [[ -d "$dest_dir" ]]; then
+                echo "Plugin '$plugin_name' is already installed in $project_name."
+            else
+                cp -R "$template_dir" "$dest_dir"
+                echo "Installed $plugin_name into $project_name/plugins/."
+            fi
+            _plugins_enable "$project_dir/craft.conf" "$plugin_name"
+            echo "Enabled $plugin_name in $project_name/craft.conf."
+            local conf_keys
+            conf_keys=$(grep '^[A-Z_]*=""' "$dest_dir/plugin.conf" 2>/dev/null | sed 's/=.*//')
+            if [[ -n "$conf_keys" ]]; then
+                echo ""
+                echo "Configure it with:"
+                while IFS= read -r key; do
+                    echo "  craft plugin set $project_name $plugin_name $key <value>"
+                done <<< "$conf_keys"
+            fi
+            ;;
+
+        set)
+            local project_name="${1:-}" plugin_name="${2:-}" key="${3:-}" value="${4:-}"
+            if [[ -z "$project_name" || -z "$plugin_name" || -z "$key" || -z "$value" ]]; then
+                echo "Usage: craft plugin set <project-name> <plugin-name> <key> <value>"
+                exit 1
+            fi
+            local conf="$CRAFT_ROOT/projects/$project_name/plugins/$plugin_name/plugin.conf"
+            if [[ ! -f "$conf" ]]; then
+                echo "Plugin config not found: $conf"
+                echo "Run 'craft plugin add $project_name $plugin_name' first."
+                exit 1
+            fi
+            if grep -q "^${key}=" "$conf" || grep -q "^# ${key}=" "$conf"; then
+                sed -i "s|^#\? *${key}=.*|${key}=\"${value}\"|" "$conf"
+            else
+                echo "${key}=\"${value}\"" >> "$conf"
+            fi
+            echo "Set ${key} in $project_name/$plugin_name."
+            ;;
+
+        show)
+            local project_name="${1:-}" plugin_name="${2:-}"
+            if [[ -z "$project_name" || -z "$plugin_name" ]]; then
+                echo "Usage: craft plugin show <project-name> <plugin-name>"
+                exit 1
+            fi
+            local conf="$CRAFT_ROOT/projects/$project_name/plugins/$plugin_name/plugin.conf"
+            if [[ ! -f "$conf" ]]; then
+                echo "Plugin not installed. Run: craft plugin add $project_name $plugin_name"
+                exit 1
+            fi
+            echo "Config for $project_name/$plugin_name ($conf):"
+            grep -v '^#' "$conf" | grep -v '^[[:space:]]*$'
+            ;;
+
+        *)
+            echo "Usage: craft plugin <list|add|set|show>"
+            exit 1
+            ;;
+    esac
+}
+
 if [[ $# -eq 0 ]] || [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
     usage
     exit 0
@@ -98,6 +221,9 @@ case "$SUBCOMMAND" in
         ;;
     config)
         cmd_config "$@"
+        ;;
+    plugin)
+        cmd_plugin "$@"
         ;;
     *)
         PROJECT_NAME="$SUBCOMMAND"
@@ -268,11 +394,27 @@ Options:
 - `--max-parallel N` — cap on concurrent agents (default: 10)
 - `--poll-interval SECONDS` — how often to check the queue (default: 15)
 
-### 5. Review PRs
+### 5. Add plugins (optional)
+
+Plugins hook into task lifecycle events. Use the CLI to install and configure them:
+
+```bash
+craft plugin list                                            # see what's available
+craft plugin add my-project slack-dm-notify                  # install + enable
+craft plugin set my-project slack-dm-notify SLACK_BOT_TOKEN xoxb-...
+craft plugin set my-project slack-dm-notify SLACK_USER_ID   U01ABC123
+```
+
+Available plugins:
+- `slack-dm-notify` — DM you when a task has a draft PR or research findings ready
+- `slack-daily-thread` — Post PR events to a daily Slack channel thread
+- `linear-sync` — Two-way sync with Linear issues
+
+### 6. Review PRs
 
 When an agent finishes a task it moves it to `waiting/` and pings you on Slack with the PR URL. Review the draft PR, mark it ready, and merge when happy. The agent handles CI failures and review comments automatically.
 
-### 6. Blocked tasks
+### 7. Blocked tasks
 
 If an agent can't proceed (failed QA it can't fix, unresolvable error), it moves the task to `blocked/` with a detailed work log explaining what happened. The orchestrator surfaces blocked tasks prominently in the dashboard.
 
