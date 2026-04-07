@@ -72,15 +72,14 @@ on_waiting() {
     local msg
     if [[ "$task_type" == "research" ]]; then
         msg="*[$project_name]* Research task *$task_id* has findings ready"
-        [[ -n "$task_title" ]] && msg="$msg: _${task_title}_"
-        msg="${msg}\nCheck tmux: \`craft-$project_name\` → window \`$task_id\`"
+        [[ -n "$task_title" ]] && msg="${msg}"$'\n'"${task_title}"
+        msg="${msg}"$'\n'"Check tmux: \`craft-$project_name\` → window \`$task_id\`"
     elif [[ -n "$pr_url" ]]; then
-        msg="*[$project_name]* Draft PR ready for review — *$task_id*"
-        [[ -n "$task_title" ]] && msg="$msg: _${task_title}_"
-        msg="${msg}\n${pr_url}"
+        msg="*[$project_name]* Draft PR ready for review - *$task_id*: ${pr_url}"
+        [[ -n "$task_title" ]] && msg="${msg}"$'\n'"${task_title}"
     else
         msg="*[$project_name]* Task *$task_id* is waiting for your attention"
-        [[ -n "$task_title" ]] && msg="$msg: _${task_title}_"
+        [[ -n "$task_title" ]] && msg="${msg}"$'\n'"${task_title}"
     fi
 
     _send_dm "$msg"
