@@ -2,6 +2,14 @@
 
 Run coding tasks in parallel with autonomous AI agents. You define the work, approve what runs, and review the PRs — everything in between is automated.
 
+## Key Principles
+
+- **The project folder is the state machine.** Files on disk represent state. No database. Everything is human-readable and editable.
+- **You review at two gates.** Task approval and PR merge. Everything in between is automated.
+- **Agents never merge.** They create draft PRs, self-review, and respond to feedback. You decide when to merge.
+- **Blocked is safe.** If an agent can't proceed, it stops and explains why rather than guessing.
+- **Isolated worktrees.** Each task gets its own git worktree, so parallel tasks don't conflict.
+
 ## Prerequisites
 
 You'll need these installed before using craft:
@@ -267,10 +275,3 @@ make install    # use local repo (changes take effect immediately)
 make uninstall  # fall back to Homebrew install
 ```
 
-## Key Principles
-
-- **The project folder is the state machine.** Files on disk represent state. No database. Everything is human-readable and editable.
-- **You review at two gates.** Task approval and PR merge. Everything in between is automated.
-- **Agents never merge.** They create draft PRs, self-review, and respond to feedback. You decide when to merge.
-- **Blocked is safe.** If an agent can't proceed, it stops and explains why rather than guessing.
-- **Isolated worktrees.** Each task gets its own git worktree, so parallel tasks don't conflict.
