@@ -43,7 +43,7 @@ provider_architect_cmd() {
 
 # Load project-level provider config
 # Usage: load_provider_config <project_dir>
-# Sets: DEFAULT_AGENT, ARCHITECT_AGENT
+# Sets: DEFAULT_AGENT, ARCHITECT_AGENT, MULTIPLEXER
 load_provider_config() {
     local project_dir="$1"
     local config_file="$project_dir/craft.conf"
@@ -51,6 +51,7 @@ load_provider_config() {
     # Defaults
     DEFAULT_AGENT="${DEFAULT_AGENT:-claude}"
     ARCHITECT_AGENT="${ARCHITECT_AGENT:-claude}"
+    MULTIPLEXER="${MULTIPLEXER:-tmux}"
 
     if [[ -f "$config_file" ]]; then
         # shellcheck source=/dev/null
@@ -59,7 +60,7 @@ load_provider_config() {
 
     # Resolve operator name: config > git > $USER
     OPERATOR_NAME="${OPERATOR_NAME:-$(git config user.name 2>/dev/null || echo "${USER:-operator}")}"
-    export OPERATOR_NAME
+    export OPERATOR_NAME MULTIPLEXER
 }
 
 # Get the agent provider for a specific task (task-level override or project default)

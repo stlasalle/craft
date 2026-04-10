@@ -71,6 +71,7 @@ Usage:
 Keys:
   DEFAULT_AGENT    Agent CLI for tasks (default: claude)
   ARCHITECT_AGENT  Agent CLI for architect window (default: claude)
+  MULTIPLEXER      Terminal multiplexer: tmux (default) or cmux
   OPERATOR_NAME    Your name, used in prompts
   GITHUB_REVIEWER  GitHub username for PR reviews
   BRANCH_PREFIX    Prepended to branch names (e.g. "sls/")
@@ -80,6 +81,7 @@ Examples:
   craft config my-project
   craft config my-project DEFAULT_AGENT
   craft config my-project DEFAULT_AGENT codex
+  craft config my-project MULTIPLEXER cmux
   craft config my-project BRANCH_PREFIX "sls/"
 HELP
         exit 0
@@ -341,9 +343,9 @@ craft doctor — Check dependencies and environment
 
 Verifies that all required tools are installed and reports their versions.
 
-Required:  bash, git, tmux, gh, jq
+Required:  bash, git, tmux or cmux, gh, jq
 Agents:    claude, codex (at least one needed)
-Optional:  linear-cli (for the linear-sync plugin)
+Optional:  linear-cli (for the linear-sync plugin), cmux (alternative to tmux)
 
 Also checks that craft is on your PATH and shows environment info.
 HELP
@@ -357,13 +359,12 @@ HELP
 
     # Check required dependencies
     echo "Required:"
-    for cmd in bash git tmux gh jq; do
+    for cmd in bash git gh jq; do
         if command -v "$cmd" > /dev/null 2>&1; then
             local ver
             case "$cmd" in
                 bash)  ver="$("$cmd" --version 2>&1 | head -1 | sed 's/.*version //' | sed 's/(.*//')" ;;
                 git)   ver="$(git --version | sed 's/git version //')" ;;
-                tmux)  ver="$(tmux -V 2>&1 | sed 's/tmux //')" ;;
                 gh)    ver="$(gh --version 2>&1 | head -1 | sed 's/.*version //' | sed 's/ .*//')" ;;
                 jq)    ver="$(jq --version 2>&1 | sed 's/jq-//')" ;;
             esac
@@ -373,6 +374,25 @@ HELP
             all_ok=false
         fi
     done
+
+    echo ""
+    echo "Multiplexer (need at least one):"
+    local has_mux=false
+    if command -v tmux > /dev/null 2>&1; then
+        printf "  %-12s ✓  %s\n" "tmux" "$(tmux -V 2>&1 | sed 's/tmux //')"
+        has_mux=true
+    else
+        printf "  %-12s -  not found\n" "tmux"
+    fi
+    if command -v cmux > /dev/null 2>&1; then
+        printf "  %-12s ✓  installed (macOS only)\n" "cmux"
+        has_mux=true
+    else
+        printf "  %-12s -  not found\n" "cmux"
+    fi
+    if ! $has_mux; then
+        all_ok=false
+    fi
 
     echo ""
     echo "Agent providers:"

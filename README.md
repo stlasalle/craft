@@ -2,6 +2,16 @@
 
 Run coding tasks in parallel with autonomous AI agents. You define the work, approve what runs, and review the PRs — everything in between is automated.
 
+## Prerequisites
+
+You'll need these installed before using craft:
+
+- **git**, **gh** (GitHub CLI), **jq** — for repo operations and PR management
+- **tmux** or **cmux** — for managing parallel agent sessions ([tmux](https://github.com/tmux/tmux), [cmux](https://cmux.com))
+- An AI agent CLI — **claude** (Claude Code) is the default, **codex** also supported
+
+Run `craft doctor` after installing to verify everything is in place.
+
 ## Install
 
 **macOS (Homebrew):**
@@ -203,6 +213,7 @@ craft config my-project DEFAULT_AGENT codex     # set a value
 |---|---|---|
 | `DEFAULT_AGENT` | `claude` | Agent CLI for task execution |
 | `ARCHITECT_AGENT` | `claude` | Agent CLI for the architect window |
+| `MULTIPLEXER` | `tmux` | Terminal multiplexer: `tmux` or `cmux` |
 | `OPERATOR_NAME` | git user | Your name, used in prompts |
 | `GITHUB_REVIEWER` | gh user | GitHub username for PR reviews |
 | `BRANCH_PREFIX` | *(empty)* | Prepended to branch names, e.g. `sls/` |

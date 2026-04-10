@@ -12,9 +12,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/queue.sh"
-source "$SCRIPT_DIR/lib/tmux.sh"
 source "$SCRIPT_DIR/lib/notify.sh"
 source "$SCRIPT_DIR/lib/providers.sh"
+# Multiplexer loaded after config (needs MULTIPLEXER variable)
 
 # --- Logging ---
 LOG_FILE=""  # set after PROJECT_DIR is known
@@ -74,8 +74,11 @@ mkdir -p "$PROJECT_DIR/logs"
 # Initialize log file
 LOG_FILE="$PROJECT_DIR/logs/orchestrator-$(date '+%Y-%m-%d').log"
 
-# Load agent provider config (sets DEFAULT_AGENT, ARCHITECT_AGENT)
+# Load agent provider config (sets DEFAULT_AGENT, ARCHITECT_AGENT, MULTIPLEXER)
 load_provider_config "$PROJECT_DIR"
+
+# Load multiplexer provider (must come after config so MULTIPLEXER is set)
+source "$SCRIPT_DIR/lib/mux.sh"
 
 # --- State tracking ---
 declare -A ACTIVE_TASKS=()  # task_id -> tmux window name
@@ -345,14 +348,17 @@ check_waiting_tasks() {
 
 # --- Main Loop ---
 
-# Ensure tmux session with orchestrator + planner windows
+# Ensure multiplexer session with orchestrator + planner windows
 SESSION=$(ensure_session "$PROJECT_NAME" "$PROJECT_DIR")
 
-# If we're not already inside this tmux session, re-exec ourselves inside the orchestrator pane
-if [[ -z "${TMUX:-}" ]] || [[ "$(tmux display-message -p '#{session_name}' 2>/dev/null)" != "$SESSION" ]]; then
-    tmux send-keys -t "${SESSION}:orchestrator" "exec '$0' '$PROJECT_DIR' --max-parallel $MAX_PARALLEL --poll-interval $POLL_INTERVAL" Enter
-    exec tmux attach -t "$SESSION"
+# If using tmux and we're not already inside the session, re-exec inside the orchestrator pane
+if [[ "$MULTIPLEXER" == "tmux" ]]; then
+    if [[ -z "${TMUX:-}" ]] || [[ "$(tmux display-message -p '#{session_name}' 2>/dev/null)" != "$SESSION" ]]; then
+        tmux send-keys -t "${SESSION}:orchestrator" "exec '$0' '$PROJECT_DIR' --max-parallel $MAX_PARALLEL --poll-interval $POLL_INTERVAL" Enter
+        exec tmux attach -t "$SESSION"
+    fi
 fi
+# cmux: no re-exec needed — the orchestrator runs directly in the current terminal
 
 log "Craft orchestrator starting for: $PROJECT_DIR"
 log "Max parallel tasks: $MAX_PARALLEL, Poll interval: ${POLL_INTERVAL}s"
