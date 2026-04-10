@@ -8,9 +8,9 @@ set -euo pipefail
 # Creates a new project folder in projects/<project-name> by copying
 # the templates/ structure and replacing placeholders.
 
-CRAFT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CRAFT_ROOT="${CRAFT_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 TEMPLATES_DIR="$CRAFT_ROOT/templates"
-PROJECTS_DIR="$CRAFT_ROOT/projects"
+PROJECTS_DIR="${CRAFT_PROJECTS:-$CRAFT_ROOT/projects}"
 
 # Portable sed -i wrapper (macOS vs GNU)
 _sed_i() {

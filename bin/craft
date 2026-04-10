@@ -14,7 +14,12 @@ _resolve_script() {
     done
     echo "$src"
 }
-CRAFT_ROOT="$(cd "$(dirname "$(_resolve_script "$0")")/.." && pwd)"
+CRAFT_ROOT="${CRAFT_ROOT:-$(cd "$(dirname "$(_resolve_script "$0")")/.." && pwd)}"
+
+# Projects directory — defaults to $CRAFT_ROOT/projects but can be overridden
+# (useful for Homebrew installs where CRAFT_ROOT is read-only)
+CRAFT_PROJECTS="${CRAFT_PROJECTS:-$CRAFT_ROOT/projects}"
+export CRAFT_ROOT CRAFT_PROJECTS
 
 # Version
 if [[ -f "$CRAFT_ROOT/VERSION" ]]; then
@@ -61,7 +66,7 @@ Examples:
   craft plugin set my-project slack-dm-notify SLACK_USER_ID U01ABC123
   craft plugin show my-project slack-dm-notify
 
-Projects are stored in $CRAFT_ROOT/projects/.
+Projects are stored in $CRAFT_PROJECTS/.
 USAGE
 }
 
@@ -81,9 +86,9 @@ cmd_config() {
         exit 1
     fi
 
-    local conf="$CRAFT_ROOT/projects/$project_name/craft.conf"
+    local conf="$CRAFT_PROJECTS/$project_name/craft.conf"
     if [[ ! -f "$conf" ]]; then
-        echo "Project not found: $CRAFT_ROOT/projects/$project_name"
+        echo "Project not found: $CRAFT_PROJECTS/$project_name"
         exit 1
     fi
 
@@ -153,7 +158,7 @@ cmd_plugin() {
                 echo "Usage: craft plugin add <project-name> <plugin-name>"
                 exit 1
             fi
-            local project_dir="$CRAFT_ROOT/projects/$project_name"
+            local project_dir="$CRAFT_PROJECTS/$project_name"
             if [[ ! -d "$project_dir" ]]; then
                 echo "Project not found: $project_dir"
                 exit 1
@@ -190,7 +195,7 @@ cmd_plugin() {
                 echo "Usage: craft plugin set <project-name> <plugin-name> <key> <value>"
                 exit 1
             fi
-            local conf="$CRAFT_ROOT/projects/$project_name/plugins/$plugin_name/plugin.conf"
+            local conf="$CRAFT_PROJECTS/$project_name/plugins/$plugin_name/plugin.conf"
             if [[ ! -f "$conf" ]]; then
                 echo "Plugin config not found: $conf"
                 echo "Run 'craft plugin add $project_name $plugin_name' first."
@@ -210,7 +215,7 @@ cmd_plugin() {
                 echo "Usage: craft plugin show <project-name> <plugin-name>"
                 exit 1
             fi
-            local conf="$CRAFT_ROOT/projects/$project_name/plugins/$plugin_name/plugin.conf"
+            local conf="$CRAFT_PROJECTS/$project_name/plugins/$plugin_name/plugin.conf"
             if [[ ! -f "$conf" ]]; then
                 echo "Plugin not installed. Run: craft plugin add $project_name $plugin_name"
                 exit 1
@@ -327,13 +332,13 @@ case "$SUBCOMMAND" in
         ;;
     *)
         PROJECT_NAME="$SUBCOMMAND"
-        PROJECT_DIR="$CRAFT_ROOT/projects/$PROJECT_NAME"
+        PROJECT_DIR="$CRAFT_PROJECTS/$PROJECT_NAME"
 
         if [[ ! -d "$PROJECT_DIR" ]]; then
             echo "Project not found: $PROJECT_DIR"
             echo ""
             echo "Available projects:"
-            ls "$CRAFT_ROOT/projects/" 2>/dev/null || echo "  (none)"
+            ls "$CRAFT_PROJECTS/" 2>/dev/null || echo "  (none)"
             echo ""
             echo "Create one with: craft init $PROJECT_NAME"
             exit 1
