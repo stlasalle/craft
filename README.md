@@ -41,25 +41,24 @@ craft doctor
 craft init my-project
 ```
 
-### 2. Write your plan
-
-Open `projects/my-project/docs/plan.md` and describe what you want to build — goals, repos, and milestones.
-
-### 3. Generate tasks
-
-Start the orchestrator and use the architect window to break your plan into tasks:
+### 2. Start craft
 
 ```bash
 craft my-project
 ```
 
-This opens a tmux session with two windows:
+This opens a session with two windows:
 - **orchestrator** — the dashboard, shows queue status and active agents
 - **architect** — a Claude session pre-loaded with your project context
 
-In the architect window, run `/generate-milestone` to plan your first milestone, then `/split-milestone` to break it into executable tasks.
+The architect window is your starting point. From there you can:
+- Write or refine your project plan (`docs/plan.md`)
+- Pull in docs or context from external sources
+- Run `/generate-milestone` to plan your first milestone
+- Run `/split-milestone` to break it into executable tasks
+- Or just create a task directly
 
-### 4. Approve and run
+### 3. Approve and run
 
 Tasks start in `queue/pending/`. Move them to `queue/approved/` when you're ready:
 
@@ -67,9 +66,9 @@ Tasks start in `queue/pending/`. Move them to `queue/approved/` when you're read
 mv queue/pending/task-001.md queue/approved/
 ```
 
-The orchestrator picks up approved tasks automatically, spins up an agent per task in its own tmux window, and shows progress on the dashboard.
+The orchestrator picks up approved tasks automatically, spins up an agent per task, and shows progress on the dashboard.
 
-### 5. Review PRs
+### 4. Review PRs
 
 Each agent creates a **draft PR**, runs QA, and self-reviews. You get notified (via Slack if configured), review the PR, and merge. The agent handles CI failures and review comments while it waits.
 
