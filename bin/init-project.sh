@@ -12,6 +12,15 @@ CRAFT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TEMPLATES_DIR="$CRAFT_ROOT/templates"
 PROJECTS_DIR="$CRAFT_ROOT/projects"
 
+# Portable sed -i wrapper (macOS vs GNU)
+_sed_i() {
+    if sed --version 2>/dev/null | grep -q GNU; then
+        sed -i "$@"
+    else
+        sed -i "" "$@"
+    fi
+}
+
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <project-name>"
     echo "Example: $0 trust-content-mod"
@@ -58,12 +67,12 @@ if [[ ! -f "$PROJECT_DIR/craft.conf" ]]; then
 fi
 
 # Set resolved values in project config
-sed -i "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_DIR/craft.conf"
+_sed_i "s/^# OPERATOR_NAME=$/OPERATOR_NAME=\"${OPERATOR_NAME}\"/" "$PROJECT_DIR/craft.conf"
 if [[ -n "$GITHUB_REVIEWER" ]]; then
-    sed -i "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/craft.conf"
+    _sed_i "s/^# GITHUB_REVIEWER=$/GITHUB_REVIEWER=\"${GITHUB_REVIEWER}\"/" "$PROJECT_DIR/craft.conf"
 fi
 if [[ -n "$BRANCH_PREFIX" ]]; then
-    sed -i "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/craft.conf"
+    _sed_i "s/^# BRANCH_PREFIX=$/BRANCH_PREFIX=\"${BRANCH_PREFIX}\"/" "$PROJECT_DIR/craft.conf"
 fi
 
 # Replace placeholders in .template files
@@ -75,8 +84,9 @@ for template in "$PROJECT_DIR"/docs/*.template "$PROJECT_DIR"/.claude/*.template
 done
 
 # Replace placeholders in non-template files (skills, docs)
-find "$PROJECT_DIR" -name '*.md' -type f -exec \
-    sed -i "s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g; s|{{BRANCH_PREFIX}}|$BRANCH_PREFIX|g" {} +
+while IFS= read -r -d '' mdfile; do
+    _sed_i "s/{{OPERATOR_NAME}}/$OPERATOR_NAME/g; s/{{GITHUB_REVIEWER}}/$GITHUB_REVIEWER/g; s|{{BRANCH_PREFIX}}|$BRANCH_PREFIX|g" "$mdfile"
+done < <(find "$PROJECT_DIR" -name '*.md' -type f -print0)
 
 echo ""
 echo "Project created at: $PROJECT_DIR"

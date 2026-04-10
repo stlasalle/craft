@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # queue.sh — Queue manipulation helpers for the craft orchestrator
 
+# Portable sed -i wrapper (macOS vs GNU)
+_sed_i() {
+    if sed --version 2>/dev/null | grep -q GNU; then
+        sed -i "$@"
+    else
+        sed -i "" "$@"
+    fi
+}
+
 # Get the value of a YAML frontmatter field from a task file
 # Usage: task_field <file> <field>
 task_field() {
@@ -71,7 +80,7 @@ move_task() {
     local target="$target_dir/$filename"
 
     # Update status in frontmatter
-    sed -i "s/^status:.*/status: $new_status/" "$file"
+    _sed_i "s/^status:.*/status: $new_status/" "$file"
 
     # Move the file
     mv "$file" "$target"
