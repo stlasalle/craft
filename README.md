@@ -6,11 +6,23 @@ A project orchestration system that runs Claude Code agents autonomously against
 
 ### 1. Install the `craft` CLI
 
-**Via Homebrew (recommended):**
+**Via Homebrew (macOS):**
 
 ```bash
 brew tap stlasalle/craft
 brew install craft
+```
+
+**Via install script (macOS or Linux):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stlasalle/craft/main/install.sh | bash
+```
+
+This installs to `~/.craft/` and symlinks the binary to `~/.local/bin/craft`. Projects are stored in `~/.craft/projects/`. To install a specific version, pass `--version`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stlasalle/craft/main/install.sh | bash -s -- --version 0.1.0
 ```
 
 **From source (for development):**
