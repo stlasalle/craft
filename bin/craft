@@ -33,41 +33,18 @@ usage() {
 craft — project orchestrator CLI (v${CRAFT_VERSION})
 
 Usage:
-  craft init <project-name>                     Scaffold a new project
-  craft <project-name> [options]                Start the orchestrator for a project
-  craft config <project-name> [k] [v]           Read or set project config
-  craft plugin list                             Show available plugins
-  craft plugin add <project> <plugin>           Install a plugin into a project
-  craft plugin check <project>                  Validate plugin dependencies
-  craft plugin set <project> <plugin> <k> <v>  Set a plugin config value
-  craft plugin show <project> <plugin>          Show a plugin's current config
-  craft doctor                                  Check dependencies and environment
-  craft --version                               Show version
-  craft --help                                  Show this help
+  craft init <project-name>          Scaffold a new project
+  craft <project-name> [options]     Start the orchestrator
+  craft config <project> [key] [val] Read or set project config
+  craft plugin <subcommand>          Manage plugins
+  craft doctor                       Check dependencies
+  craft --version                    Show version
 
-Orchestrator options:
-  --max-parallel N       Max parallel agents (default: 10)
-  --poll-interval SECS   Queue poll interval (default: 15)
+Run 'craft <command> --help' for details on any command.
 
-Config keys (stored in projects/<name>/craft.conf):
-  DEFAULT_AGENT          Agent CLI for task execution  (default: claude)
-  ARCHITECT_AGENT        Agent CLI for architect pane  (default: claude)
-  OPERATOR_NAME          Your name, used in prompts
-  GITHUB_REVIEWER        GitHub username for PR review
-  BRANCH_PREFIX          Branch prefix e.g. "sls/"
-  PLUGINS                Comma-separated list of enabled plugins
-
-Examples:
-  craft init my-project
-  craft my-project
-  craft config my-project DEFAULT_AGENT codex
-  craft plugin list
-  craft plugin add my-project slack-dm-notify
-  craft plugin set my-project slack-dm-notify SLACK_BOT_TOKEN xoxb-...
-  craft plugin set my-project slack-dm-notify SLACK_USER_ID U01ABC123
-  craft plugin show my-project slack-dm-notify
-
-Projects are stored in $CRAFT_PROJECTS/.
+Quick start:
+  craft init my-project              Create a project
+  craft my-project                   Start the orchestrator
 USAGE
 }
 
@@ -82,9 +59,36 @@ _sed_i() {
 }
 
 cmd_config() {
+    if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+        cat << 'HELP'
+craft config — Read or set project configuration
+
+Usage:
+  craft config <project>              Show all config values
+  craft config <project> <key>        Get a single value
+  craft config <project> <key> <val>  Set a value
+
+Keys:
+  DEFAULT_AGENT    Agent CLI for tasks (default: claude)
+  ARCHITECT_AGENT  Agent CLI for architect window (default: claude)
+  OPERATOR_NAME    Your name, used in prompts
+  GITHUB_REVIEWER  GitHub username for PR reviews
+  BRANCH_PREFIX    Prepended to branch names (e.g. "sls/")
+  PLUGINS          Comma-separated enabled plugins
+
+Examples:
+  craft config my-project
+  craft config my-project DEFAULT_AGENT
+  craft config my-project DEFAULT_AGENT codex
+  craft config my-project BRANCH_PREFIX "sls/"
+HELP
+        exit 0
+    fi
+
     local project_name="${1:-}"
     if [[ -z "$project_name" ]]; then
         echo "Usage: craft config <project-name> [key] [value]"
+        echo "Run 'craft config --help' for details."
         exit 1
     fi
 
@@ -139,6 +143,35 @@ cmd_plugin() {
     shift || true
 
     case "$subcmd" in
+        --help|-h|"")
+            cat << 'HELP'
+craft plugin — Manage project plugins
+
+Usage:
+  craft plugin list                              Show available plugins
+  craft plugin add <project> <plugin>            Install a plugin
+  craft plugin check <project>                   Validate all plugin dependencies
+  craft plugin set <project> <plugin> <k> <v>    Set a plugin config value
+  craft plugin show <project> <plugin>            Show plugin config
+
+Plugins hook into task lifecycle events (on_started, on_waiting, on_done,
+on_blocked, on_milestone). They run in subshells so failures don't break
+the orchestrator.
+
+Available plugins:
+  slack-dm-notify      DMs you on Slack when a draft PR is ready
+  slack-daily-thread   Posts PR events to a daily Slack channel thread
+  linear-sync          Two-way sync with Linear issues
+
+Example — set up Slack notifications:
+  craft plugin add my-project slack-dm-notify
+  craft plugin set my-project slack-dm-notify SLACK_BOT_TOKEN xoxb-...
+  craft plugin set my-project slack-dm-notify SLACK_USER_ID U01ABC123
+  craft plugin check my-project
+HELP
+            exit 0
+            ;;
+
         list)
             echo "Available plugins (in $CRAFT_ROOT/templates/plugins/):"
             for d in "$CRAFT_ROOT/templates/plugins"/*/; do
@@ -294,13 +327,29 @@ cmd_plugin() {
             ;;
 
         *)
-            echo "Usage: craft plugin <list|add|check|set|show>"
+            echo "Unknown plugin command: $subcmd"
+            echo "Run 'craft plugin --help' for usage."
             exit 1
             ;;
     esac
 }
 
 cmd_doctor() {
+    if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+        cat << 'HELP'
+craft doctor — Check dependencies and environment
+
+Verifies that all required tools are installed and reports their versions.
+
+Required:  bash, git, tmux, gh, jq
+Agents:    claude, codex (at least one needed)
+Optional:  linear-cli (for the linear-sync plugin)
+
+Also checks that craft is on your PATH and shows environment info.
+HELP
+        exit 0
+    fi
+
     echo "craft doctor (v${CRAFT_VERSION})"
     echo ""
 
@@ -388,6 +437,33 @@ shift
 
 case "$SUBCOMMAND" in
     init)
+        if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+            cat << 'HELP'
+craft init — Scaffold a new project
+
+Usage:
+  craft init <project-name>
+
+Creates a new project in the projects directory with:
+  - docs/plan.md          — project plan (edit this first)
+  - queue/                — task queue directories
+  - .claude/commands/     — Claude Code skills (slash commands)
+  - craft.conf            — project configuration
+
+Your operator name and GitHub username are auto-detected from git
+config and the gh CLI. Override with environment variables:
+
+  OPERATOR_NAME="Jane Doe" craft init my-project
+  GITHUB_REVIEWER="jdoe" craft init my-project
+  BRANCH_PREFIX="jd/" craft init my-project
+
+After init:
+  1. Edit docs/plan.md with your project goals
+  2. Run 'craft my-project' to start the orchestrator
+  3. Use /generate-milestone in the architect window to plan tasks
+HELP
+            exit 0
+        fi
         exec "$CRAFT_ROOT/bin/init-project.sh" "$@"
         ;;
     config)

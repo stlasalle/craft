@@ -1,159 +1,106 @@
 # Craft
 
-A project orchestration system that runs Claude Code agents autonomously against a queue of tasks, manages their lifecycle, and surfaces work for human review at the right moments.
+Run coding tasks in parallel with autonomous AI agents. You define the work, approve what runs, and review the PRs — everything in between is automated.
 
-## Quick Start
+## Install
 
-### 1. Install the `craft` CLI
-
-**Via Homebrew (macOS):**
+**macOS (Homebrew):**
 
 ```bash
 brew tap stlasalle/craft
 brew install craft
 ```
 
-**Via install script (macOS or Linux):**
+**macOS or Linux:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/stlasalle/craft/main/install.sh | bash
 ```
 
-This installs to `~/.craft/` and symlinks the binary to `~/.local/bin/craft`. Projects are stored in `~/.craft/projects/`. To install a specific version, pass `--version`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/stlasalle/craft/main/install.sh | bash -s -- --version 0.1.0
-```
-
-**From source (for development):**
-
-```bash
-git clone git@github.com:stlasalle/craft.git ~/craft
-cd ~/craft
-make install
-```
-
-This symlinks the `craft` command to `~/.local/bin/craft`. Make sure `~/.local/bin` is in your `PATH` (add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile if needed).
-
-**Switching between Homebrew and local dev:**
-
-If you have both installed, the local symlink takes priority. Toggle with:
-
-```bash
-make install    # use local repo (changes take effect immediately)
-make uninstall  # use Homebrew install
-```
-
-**Verify your setup:**
+Then verify:
 
 ```bash
 craft doctor
 ```
 
-### 2. Create a new project
+## Get Started
+
+### 1. Create a project
 
 ```bash
 craft init my-project
 ```
 
-This scaffolds `projects/my-project/` from the templates, with a project plan, queue directories, and Claude skills pre-installed. Then:
+### 2. Write your plan
 
-1. Edit `projects/my-project/docs/plan.md` with your project goals and milestones
-2. Run the `/generate-milestone` skill in Claude Code to create your first batch of tasks
+Open `projects/my-project/docs/plan.md` and describe what you want to build — goals, repos, and milestones.
 
-### 3. Start the orchestrator
+### 3. Generate tasks
+
+Start the orchestrator and use the architect window to break your plan into tasks:
 
 ```bash
 craft my-project
 ```
 
-This opens a tmux session with the orchestrator dashboard. Approve tasks by moving them from `queue/pending/` to `queue/approved/` — the orchestrator picks them up and starts agents automatically.
+This opens a tmux session with two windows:
+- **orchestrator** — the dashboard, shows queue status and active agents
+- **architect** — a Claude session pre-loaded with your project context
+
+In the architect window, run `/generate-milestone` to plan your first milestone, then `/split-milestone` to break it into executable tasks.
+
+### 4. Approve and run
+
+Tasks start in `queue/pending/`. Move them to `queue/approved/` when you're ready:
+
+```bash
+mv queue/pending/task-001.md queue/approved/
+```
+
+The orchestrator picks up approved tasks automatically, spins up an agent per task in its own tmux window, and shows progress on the dashboard.
+
+### 5. Review PRs
+
+Each agent creates a **draft PR**, runs QA, and self-reviews. You get notified (via Slack if configured), review the PR, and merge. The agent handles CI failures and review comments while it waits.
+
+That's it. Tasks flow through: `pending` → `approved` → `in-progress` → `waiting` → `done`.
 
 ---
 
-## What It Does
+## How It Works
 
-Craft lets you define a software project as a set of structured tasks, then runs them in parallel using Claude Code — each agent working in its own isolated git worktree, creating a draft PR, running QA, self-reviewing, and monitoring CI and review feedback until the PR merges.
+### The Queue
 
-You approve tasks before they run. You review PRs before they merge. Everything in between is automated.
-
-### Task Lifecycle
+The project folder *is* the state machine. Tasks are markdown files that move between directories:
 
 ```
-pending/ → approved/ → in-progress/ → waiting/ → done/
-                                    ↘ blocked/
+queue/
+  pending/        Tasks defined but not yet approved
+  approved/       Ready to run — orchestrator picks these up
+  in-progress/    An agent is actively working
+  waiting/        PR created, waiting for review
+  done/           PR merged
+  blocked/        Agent hit an unrecoverable error
 ```
 
-- **pending** — defined but not yet approved to run
-- **approved** — operator has approved; orchestrator will pick these up
-- **in-progress** — an agent is actively working
-- **waiting** — agent has created a PR and is polling for review/CI feedback
-- **done** — PR merged
-- **blocked** — agent hit an unrecoverable error; needs human attention
+### What an Agent Does
 
-Agents in the `waiting` state stay alive. If the operator pushes review comments, fixes a CI failure, or marks the PR ready — the agent picks it up and responds.
+For each task, the agent:
 
-### What an Agent Does (per task)
-
-1. Reads task context — the task file, project plan, milestone doc, relevant ADRs
+1. Reads the task file, project plan, milestone docs, and ADRs
 2. Creates a git worktree for isolated work
-3. Implements the changes described in the task
-4. Runs QA per the task's `qa:` spec (unit tests, integration tests, local validation)
-5. Creates a **draft** PR with conventional commit messages
-6. Self-reviews the diff before surfacing it
-7. Moves the task to `waiting/` and notifies the operator (via plugins, if configured)
-8. Polls the PR — responds to review comments, fixes CI failures, and reacts when the operator marks it ready
-9. Moves the task to `done/` when the PR merges
+3. Implements the changes
+4. Runs QA (unit tests, integration tests, custom validation)
+5. Creates a **draft** PR with conventional commits
+6. Self-reviews the diff
+7. Polls the PR — responds to review comments, fixes CI failures
+8. Moves to `done/` when the PR merges
 
-## Repo Structure
+Agents never merge PRs. You review at two gates: **task approval** and **PR merge**.
 
-```
-bin/
-  orchestrator.sh          # Persistent daemon — watches queue, spawns agents
-  lib/
-    queue.sh               # Queue read/write helpers
-    tmux.sh                # tmux session/window management
-    notify.sh              # Lifecycle notifications (dispatches to plugins)
-templates/                 # Blueprint copied when initializing a new project
-  .claude/commands/        # Skills (Claude Code slash commands)
-    work-task.md           # Main agent skill — executes a task end-to-end
-    generate-milestone.md  # Plans and breaks down a milestone into tasks
-    split-milestone.md     # Splits a milestone into smaller pieces
-    consolidate.md         # Archives a completed milestone
-    qa-task.md             # Standalone QA review skill
-    audit.md               # Project audit skill
-  plugins/                 # Optional integrations (Slack, CI, etc.)
-    run-hook.sh            # Hook dispatcher — calls enabled plugins
-    slack-daily-thread/    # Example plugin: post PRs to a Slack daily thread
-  docs/
-    plan.md.template       # Project plan template
-    task.md.template       # Task file template
-    milestone.md.template  # Milestone doc template
-  queue/                   # Queue directory structure (pending, approved, etc.)
-  state.md.template        # Project state dashboard template
-projects/                  # Active project instances (copies of templates/ + content)
-shared/
-  prompt-patterns/         # Reusable prompt fragments
-  lessons-learned.md       # Cross-project learnings
-```
+### Task Files
 
-## How to Use
-
-### 1. Initialize a project
-
-Copy `templates/` into `projects/<your-project>/`:
-
-```bash
-cp -r templates/ projects/my-project/
-```
-
-Fill in `docs/plan.md` with project goals, milestones, and repos.
-
-### 2. Create tasks
-
-Tasks are markdown files with YAML frontmatter. Use `docs/task.md.template` as a starting point, or run the `/generate-milestone` skill to have Claude plan and create tasks from a milestone doc.
-
-Place tasks in `queue/pending/` as `task-001.md`, `task-002.md`, etc.
+Tasks are markdown with YAML frontmatter:
 
 ```yaml
 ---
@@ -167,6 +114,7 @@ branch: feat/add-feature
 qa:
   unit_tests: true
   integration_tests: false
+  local_validation: "npm test"
 ---
 
 ## Summary
@@ -176,72 +124,143 @@ Add the thing.
 1. The thing works.
 ```
 
-### 3. Approve tasks
-
-Move tasks you're ready to run from `pending/` to `approved/`:
-
-```bash
-mv queue/pending/task-001.md queue/approved/
-```
-
-### 4. Start the orchestrator
-
-```bash
-bin/orchestrator.sh projects/my-project/
-```
-
-This opens a tmux session with an orchestrator dashboard window and a planner window. The orchestrator picks up approved tasks, spawns a Claude Code agent per task in its own tmux window, and displays live status.
-
-Options:
-- `--max-parallel N` — cap on concurrent agents (default: 10)
-- `--poll-interval SECONDS` — how often to check the queue (default: 15)
-
-### 5. Add plugins (optional)
-
-Plugins hook into task lifecycle events. Use the CLI to install and configure them:
-
-```bash
-craft plugin list                                            # see what's available
-craft plugin add my-project slack-dm-notify                  # install + enable
-craft plugin set my-project slack-dm-notify SLACK_BOT_TOKEN xoxb-...
-craft plugin set my-project slack-dm-notify SLACK_USER_ID   U01ABC123
-```
-
-Available plugins:
-- `slack-dm-notify` — DM you when a task has a draft PR or research findings ready
-- `slack-daily-thread` — Post PR events to a daily Slack channel thread
-- `linear-sync` — Two-way sync with Linear issues
-
-### 6. Review PRs
-
-When an agent finishes a task it moves it to `waiting/` and pings you on Slack with the PR URL. Review the draft PR, mark it ready, and merge when happy. The agent handles CI failures and review comments automatically.
-
-### 7. Blocked tasks
-
-If an agent can't proceed (failed QA it can't fix, unresolvable error), it moves the task to `blocked/` with a detailed work log explaining what happened. The orchestrator surfaces blocked tasks prominently in the dashboard.
-
-## Task Fields Reference
+Key fields:
 
 | Field | Description |
 |---|---|
-| `id` | Sequential task ID, e.g. `task-001` |
-| `type` | Always `pr` for now |
-| `milestone` | Milestone ID this task belongs to, e.g. `m1-foundation` |
-| `status` | Current state: `pending`, `approved`, `in-progress`, `waiting`, `done`, `blocked` |
-| `depends_on` | List of task IDs that must be `done` before this task can run |
-| `repos` | List of repo names the task will touch |
-| `branch` | Git branch name to use for the PR |
-| `qa.unit_tests` | Run the repo's unit test suite |
-| `qa.integration_tests` | Run integration tests |
-| `qa.local_validation` | Shell command to run for validation |
-| `qa.qa_env` | Flag for operator: requires QA environment validation |
-| `qa.prod_validation` | Flag for operator: requires production validation |
-| `pr` | Added by the agent: URL of the created PR |
+| `id` | Sequential ID: `task-001`, `task-002`, etc. |
+| `type` | `pr` (creates a PR) or `research` (investigation only) |
+| `milestone` | Which milestone this belongs to, e.g. `m1-foundation` |
+| `depends_on` | Task IDs that must complete first |
+| `repos` | Repos the task touches (worktrees created for each) |
+| `branch` | Git branch name for the PR |
+| `qa` | What validation to run before creating the PR |
+| `agent` | Override the default agent for this task (optional) |
+
+### Agent Providers
+
+Craft is agent-agnostic. Set the default in project config:
+
+```bash
+craft config my-project DEFAULT_AGENT claude    # default
+craft config my-project DEFAULT_AGENT codex     # use codex instead
+```
+
+Individual tasks can override with `agent:` in their frontmatter. Any CLI tool that accepts a prompt as its first argument works.
+
+### Skills (Claude Code Slash Commands)
+
+Each project gets these skills in `.claude/commands/`:
+
+| Skill | What it does |
+|---|---|
+| `/work-task` | Main worker — executes a task end-to-end |
+| `/generate-milestone` | Plans and creates a milestone interactively |
+| `/split-milestone` | Breaks a milestone into executable tasks |
+| `/consolidate` | Archives a completed milestone |
+| `/qa-task` | Standalone QA review of a completed task |
+| `/audit` | Project alignment audit against goals |
+
+### Plugins
+
+Plugins hook into task lifecycle events. Install and configure via the CLI:
+
+```bash
+craft plugin list                              # see what's available
+craft plugin add my-project slack-dm-notify    # install + enable
+craft plugin check my-project                  # verify dependencies
+```
+
+Available plugins:
+
+| Plugin | Description |
+|---|---|
+| `slack-dm-notify` | DMs you when a draft PR is ready for review |
+| `slack-daily-thread` | Posts PR events to a daily Slack channel thread |
+| `linear-sync` | Two-way sync with Linear issues |
+
+See `craft plugin add --help` for setup instructions.
+
+### Orchestrator Options
+
+```bash
+craft my-project --max-parallel 5 --poll-interval 30
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--max-parallel` | 10 | Max concurrent agents |
+| `--poll-interval` | 15 | Seconds between queue checks |
+
+### Project Config
+
+```bash
+craft config my-project                         # show all config
+craft config my-project DEFAULT_AGENT codex     # set a value
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `DEFAULT_AGENT` | `claude` | Agent CLI for task execution |
+| `ARCHITECT_AGENT` | `claude` | Agent CLI for the architect window |
+| `OPERATOR_NAME` | git user | Your name, used in prompts |
+| `GITHUB_REVIEWER` | gh user | GitHub username for PR reviews |
+| `BRANCH_PREFIX` | *(empty)* | Prepended to branch names, e.g. `sls/` |
+| `PLUGINS` | *(empty)* | Comma-separated list of enabled plugins |
+
+### Logs
+
+The orchestrator writes timestamped logs to `logs/orchestrator-YYYY-MM-DD.log` inside the project directory. Check these when debugging task lifecycle issues.
+
+---
+
+## Project Structure
+
+```
+my-project/
+  docs/
+    plan.md                 Master project plan
+    milestones/             Milestone definitions
+    adrs/                   Architectural decision records
+  queue/
+    pending/                Tasks awaiting approval
+    approved/               Tasks ready to run
+    in-progress/            Tasks being worked on
+    waiting/                Tasks with PRs awaiting review
+    done/                   Completed tasks
+    blocked/                Tasks that need human attention
+  repos/                    Git repo checkouts
+  worktrees/                Agent worktrees (auto-created)
+  plugins/                  Installed plugins
+  logs/                     Orchestrator logs
+  .claude/commands/         Skills (slash commands)
+  craft.conf                Project configuration
+  state.md                  Auto-maintained progress dashboard
+```
+
+---
+
+## Development
+
+**From source:**
+
+```bash
+git clone git@github.com:stlasalle/craft.git ~/craft
+cd ~/craft
+make install
+```
+
+**Switching between Homebrew and local dev:**
+
+```bash
+make install    # use local repo (changes take effect immediately)
+make uninstall  # fall back to Homebrew install
+```
 
 ## Key Principles
 
-- **The project folder is the state machine.** Files on disk represent state. No external database. Everything is readable and editable with a text editor.
-- **Agents work in git worktrees.** Each task gets its own worktree under `worktrees/`, so multiple tasks can run in parallel against the same repo without conflicts.
-- **You review at two gates: task approval and PR merge.** Everything else is automated.
-- **Agents never merge PRs.** They only create draft PRs, self-review, and respond to feedback.
-- **Blocked is safe.** If an agent can't proceed it stops and explains clearly rather than guessing or causing damage.
+- **The project folder is the state machine.** Files on disk represent state. No database. Everything is human-readable and editable.
+- **You review at two gates.** Task approval and PR merge. Everything in between is automated.
+- **Agents never merge.** They create draft PRs, self-review, and respond to feedback. You decide when to merge.
+- **Blocked is safe.** If an agent can't proceed, it stops and explains why rather than guessing.
+- **Isolated worktrees.** Each task gets its own git worktree, so parallel tasks don't conflict.
