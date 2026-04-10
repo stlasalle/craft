@@ -9,9 +9,23 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$PLUGIN_DIR/plugin.conf"
 
-if [[ -z "$SLACK_CHANNEL" || -z "$SLACK_BOT_PATH" ]]; then
-    return 0 2>/dev/null || exit 0
-fi
+check_deps() {
+    local ok=true
+    if [[ -z "${SLACK_CHANNEL:-}" ]]; then
+        echo "  slack-daily-thread: SLACK_CHANNEL not configured" >&2
+        echo "    Run: craft plugin set <project> slack-daily-thread SLACK_CHANNEL <id>" >&2
+        ok=false
+    fi
+    if [[ -z "${SLACK_BOT_PATH:-}" ]]; then
+        echo "  slack-daily-thread: SLACK_BOT_PATH not configured" >&2
+        echo "    Run: craft plugin set <project> slack-daily-thread SLACK_BOT_PATH <path>" >&2
+        ok=false
+    elif [[ ! -x "${SLACK_BOT_PATH}/post.sh" ]]; then
+        echo "  slack-daily-thread: ${SLACK_BOT_PATH}/post.sh not found or not executable" >&2
+        ok=false
+    fi
+    $ok
+}
 
 # Called when a PR is marked as ready (draft → ready)
 on_ready() {

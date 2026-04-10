@@ -38,6 +38,7 @@ Usage:
   craft config <project-name> [k] [v]           Read or set project config
   craft plugin list                             Show available plugins
   craft plugin add <project> <plugin>           Install a plugin into a project
+  craft plugin check <project>                  Validate plugin dependencies
   craft plugin set <project> <plugin> <k> <v>  Set a plugin config value
   craft plugin show <project> <plugin>          Show a plugin's current config
   craft doctor                                  Check dependencies and environment
@@ -71,11 +72,12 @@ USAGE
 }
 
 # Portable sed -i wrapper (macOS vs GNU)
+# Uses -E for extended regex so ? and + work consistently
 _sed_i() {
     if sed --version 2>/dev/null | grep -q GNU; then
-        sed -i "$@"
+        sed -i -E "$@"
     else
-        sed -i "" "$@"
+        sed -i "" -E "$@"
     fi
 }
 
@@ -107,7 +109,7 @@ cmd_config() {
     fi
 
     if grep -q "^${key}=" "$conf" || grep -q "^# ${key}=" "$conf"; then
-        _sed_i "s|^#\? *${key}=.*|${key}=${value}|" "$conf"
+        _sed_i "s|^#? *${key}=.*|${key}=${value}|" "$conf"
     else
         echo "${key}=${value}" >> "$conf"
     fi
@@ -202,7 +204,7 @@ cmd_plugin() {
                 exit 1
             fi
             if grep -q "^${key}=" "$conf" || grep -q "^# ${key}=" "$conf"; then
-                _sed_i "s|^#\? *${key}=.*|${key}=\"${value}\"|" "$conf"
+                _sed_i "s|^#? *${key}=.*|${key}=\"${value}\"|" "$conf"
             else
                 echo "${key}=\"${value}\"" >> "$conf"
             fi
@@ -224,8 +226,75 @@ cmd_plugin() {
             grep -v '^#' "$conf" | grep -v '^[[:space:]]*$'
             ;;
 
+        check)
+            local project_name="${1:-}"
+            if [[ -z "$project_name" ]]; then
+                echo "Usage: craft plugin check <project-name>"
+                exit 1
+            fi
+            local project_dir="$CRAFT_PROJECTS/$project_name"
+            if [[ ! -d "$project_dir" ]]; then
+                echo "Project not found: $project_dir"
+                exit 1
+            fi
+            local conf="$project_dir/craft.conf"
+            local plugins=""
+            if [[ -f "$conf" ]]; then
+                plugins=$(grep "^PLUGINS=" "$conf" | sed 's/^PLUGINS=//' | tr -d '"')
+            fi
+            if [[ -z "$plugins" ]]; then
+                echo "No plugins enabled for $project_name."
+                exit 0
+            fi
+            local all_ok=true
+            IFS=',' read -ra plugin_list <<< "$plugins"
+            for plugin in "${plugin_list[@]}"; do
+                plugin="$(echo "$plugin" | xargs)"
+                local hooks_file="$project_dir/plugins/$plugin/hooks.sh"
+                if [[ ! -f "$hooks_file" ]]; then
+                    echo "✗ $plugin — hooks.sh not found (run: craft plugin add $project_name $plugin)"
+                    all_ok=false
+                    continue
+                fi
+                # Source and run check_deps in a subshell
+                local result
+                result=$(
+                    source "$hooks_file" 2>/dev/null
+                    if declare -f check_deps > /dev/null 2>&1; then
+                        if check_deps 2>&1; then
+                            echo "OK"
+                        else
+                            echo "FAIL"
+                        fi
+                    else
+                        echo "OK_NO_CHECK"
+                    fi
+                ) 2>&1
+                if [[ "$result" == "OK" ]]; then
+                    echo "✓ $plugin"
+                elif [[ "$result" == "OK_NO_CHECK" ]]; then
+                    echo "✓ $plugin (no dep check defined)"
+                else
+                    echo "✗ $plugin"
+                    # Re-run to show error output
+                    (
+                        source "$hooks_file" 2>/dev/null
+                        check_deps 2>&1
+                    ) || true
+                    all_ok=false
+                fi
+            done
+            echo ""
+            if $all_ok; then
+                echo "All plugins OK."
+            else
+                echo "Some plugins have issues. Fix them with 'craft plugin set'."
+                exit 1
+            fi
+            ;;
+
         *)
-            echo "Usage: craft plugin <list|add|set|show>"
+            echo "Usage: craft plugin <list|add|check|set|show>"
             exit 1
             ;;
     esac

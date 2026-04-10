@@ -13,17 +13,53 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$PLUGIN_DIR/plugin.conf"
 
-if [[ -z "${SLACK_BOT_TOKEN:-}" || -z "${SLACK_USER_ID:-}" ]]; then
-    return 0 2>/dev/null || exit 0
-fi
+check_deps() {
+    local ok=true
+    if ! command -v curl > /dev/null 2>&1; then
+        echo "  slack-dm-notify: 'curl' is required but not found" >&2
+        ok=false
+    fi
+    if ! command -v jq > /dev/null 2>&1; then
+        echo "  slack-dm-notify: 'jq' is required but not found" >&2
+        ok=false
+    fi
+    if [[ -z "${SLACK_BOT_TOKEN:-}" ]]; then
+        echo "  slack-dm-notify: SLACK_BOT_TOKEN not configured" >&2
+        echo "    Run: craft plugin set <project> slack-dm-notify SLACK_BOT_TOKEN <token>" >&2
+        ok=false
+    fi
+    if [[ -z "${SLACK_USER_ID:-}" ]]; then
+        echo "  slack-dm-notify: SLACK_USER_ID not configured" >&2
+        echo "    Run: craft plugin set <project> slack-dm-notify SLACK_USER_ID <id>" >&2
+        ok=false
+    fi
+    $ok
+}
 
 _send_dm() {
     local text="$1"
-    curl -s -X POST https://slack.com/api/chat.postMessage \
-        -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "{\"channel\":\"$SLACK_USER_ID\",\"text\":$(printf '%s' "$text" | jq -Rs .)}" \
-        > /dev/null
+    local attempt max_attempts=3
+    for (( attempt=1; attempt<=max_attempts; attempt++ )); do
+        local response
+        response=$(curl -s -w "\n%{http_code}" -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"channel\":\"$SLACK_USER_ID\",\"text\":$(printf '%s' "$text" | jq -Rs .)}")
+
+        local http_code body
+        http_code=$(echo "$response" | tail -1)
+        body=$(echo "$response" | sed '$d')
+
+        if [[ "$http_code" == "200" ]] && echo "$body" | jq -e '.ok' > /dev/null 2>&1; then
+            return 0
+        fi
+
+        if (( attempt < max_attempts )); then
+            sleep 1
+        else
+            echo "[slack-dm-notify] Failed after $max_attempts attempts (HTTP $http_code)" >&2
+        fi
+    done
 }
 
 # Find a task file by ID, searching likely queue states

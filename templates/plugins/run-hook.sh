@@ -41,6 +41,15 @@ for plugin in "${PLUGIN_LIST[@]}"; do
     (
         # shellcheck source=/dev/null
         source "$hooks_file"
+
+        # If the plugin defines check_deps, validate before running the hook
+        if declare -f "check_deps" > /dev/null 2>&1; then
+            if ! check_deps 2>&1; then
+                echo "[plugins] $plugin: dependency check failed — skipping $HOOK_NAME" >&2
+                exit 0
+            fi
+        fi
+
         if declare -f "$HOOK_NAME" > /dev/null 2>&1; then
             "$HOOK_NAME" "$@"
         fi

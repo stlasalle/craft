@@ -15,9 +15,9 @@ PROJECTS_DIR="${CRAFT_PROJECTS:-$CRAFT_ROOT/projects}"
 # Portable sed -i wrapper (macOS vs GNU)
 _sed_i() {
     if sed --version 2>/dev/null | grep -q GNU; then
-        sed -i "$@"
+        sed -i -E "$@"
     else
-        sed -i "" "$@"
+        sed -i "" -E "$@"
     fi
 }
 

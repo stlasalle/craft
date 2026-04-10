@@ -9,6 +9,21 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$PLUGIN_DIR/plugin.conf"
 
+check_deps() {
+    local ok=true
+    if ! command -v linear-cli > /dev/null 2>&1; then
+        echo "  linear-sync: 'linear-cli' is required but not found" >&2
+        echo "    Install: npm install -g @anthropic/linear-cli" >&2
+        ok=false
+    fi
+    if [[ -z "${LINEAR_PROJECT:-}" ]]; then
+        echo "  linear-sync: LINEAR_PROJECT not configured" >&2
+        echo "    Run: craft plugin set <project> linear-sync LINEAR_PROJECT <project-key>" >&2
+        ok=false
+    fi
+    $ok
+}
+
 if [[ -z "$LINEAR_PROJECT" ]]; then
     return 0 2>/dev/null || exit 0
 fi

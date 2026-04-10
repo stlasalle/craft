@@ -16,6 +16,15 @@ source "$SCRIPT_DIR/lib/tmux.sh"
 source "$SCRIPT_DIR/lib/notify.sh"
 source "$SCRIPT_DIR/lib/providers.sh"
 
+# --- Logging ---
+LOG_FILE=""  # set after PROJECT_DIR is known
+
+log() {
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$msg"
+    [[ -n "$LOG_FILE" ]] && echo "$msg" >> "$LOG_FILE"
+}
+
 # --- Configuration ---
 PROJECT_DIR=""
 MAX_PARALLEL=10
@@ -59,6 +68,11 @@ for dir in approved in-progress done blocked archive waiting; do
     mkdir -p "$QUEUE_DIR/$dir"
 done
 mkdir -p "$PROJECT_DIR/worktrees"
+mkdir -p "$PROJECT_DIR/.state/waiting"
+mkdir -p "$PROJECT_DIR/logs"
+
+# Initialize log file
+LOG_FILE="$PROJECT_DIR/logs/orchestrator-$(date '+%Y-%m-%d').log"
 
 # Load agent provider config (sets DEFAULT_AGENT, ARCHITECT_AGENT)
 load_provider_config "$PROJECT_DIR"
@@ -182,7 +196,7 @@ run_task() {
     local filename
     filename=$(basename "$task_file")
 
-    echo "[$(date '+%H:%M:%S')] Starting task: $tid"
+    log "Starting task: $tid"
 
     # Move to in-progress and notify plugins
     local new_file
@@ -237,17 +251,22 @@ check_active_tasks() {
 
     for tid in "${!ACTIVE_TASKS[@]}"; do
         if ! pane_is_running "$session" "$tid"; then
-            echo "[$(date '+%H:%M:%S')] Task $tid session ended"
+            log "Task $tid session ended"
             unset ACTIVE_TASKS["$tid"]
             unset TASK_AGENTS["$tid"]
 
             # Check where the task ended up
             if find_task_in "$QUEUE_DIR/done" "$tid" > /dev/null; then
+                log "Task $tid → done"
                 notify_done "$tid" ""
             elif find_task_in "$QUEUE_DIR/blocked" "$tid" > /dev/null; then
+                log "Task $tid → blocked"
                 notify_blocked "$tid" "Task moved to blocked"
             elif find_task_in "$QUEUE_DIR/waiting" "$tid" > /dev/null; then
+                log "Task $tid → waiting"
                 notify_waiting "$tid"
+            else
+                log "Task $tid session ended but task not found in done/blocked/waiting"
             fi
 
             # Clean up the tmux window
@@ -292,16 +311,16 @@ check_milestone_completion() {
 
             if $has_done; then
                 notify_milestone "$milestone"
-                echo "[$(date '+%H:%M:%S')] Milestone complete: $milestone — run /consolidate $milestone"
+                log "Milestone complete: $milestone — run /consolidate $milestone"
             fi
         fi
     done
 }
 
 # Check for new tasks in waiting state and notify
-# Uses a marker file per task to survive orchestrator restarts
+# Uses a marker file per task inside the project directory
 check_waiting_tasks() {
-    local marker_dir="/tmp/craft-waiting-${PROJECT_NAME}"
+    local marker_dir="$PROJECT_DIR/.state/waiting"
     mkdir -p "$marker_dir"
     for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
         local tid
@@ -310,7 +329,7 @@ check_waiting_tasks() {
         if [[ ! -f "$marker_dir/$tid" ]]; then
             touch "$marker_dir/$tid"
             notify_waiting "$tid"
-            echo "[$(date '+%H:%M:%S')] Task $tid is waiting for review"
+            log "Task $tid is waiting for review"
         fi
     done
     # Clean up markers for tasks no longer in waiting
@@ -335,12 +354,11 @@ if [[ -z "${TMUX:-}" ]] || [[ "$(tmux display-message -p '#{session_name}' 2>/de
     exec tmux attach -t "$SESSION"
 fi
 
-echo "Craft orchestrator starting for: $PROJECT_DIR"
-echo "Max parallel tasks: $MAX_PARALLEL"
-echo "Poll interval: ${POLL_INTERVAL}s"
+log "Craft orchestrator starting for: $PROJECT_DIR"
+log "Max parallel tasks: $MAX_PARALLEL, Poll interval: ${POLL_INTERVAL}s"
 echo ""
 
-trap 'echo ""; echo "Orchestrator stopped."; exit 0' INT TERM
+trap 'log "Orchestrator stopped."; exit 0' INT TERM
 
 poll_count=0
 

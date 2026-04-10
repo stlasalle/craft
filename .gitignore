@@ -1,6 +1,10 @@
 # Project instances (stateful, per-user)
 projects/
 
+# Runtime state and logs
+.state/
+logs/
+
 # OS
 .DS_Store
 
