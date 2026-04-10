@@ -6,15 +6,33 @@ A project orchestration system that runs Claude Code agents autonomously against
 
 ### 1. Install the `craft` CLI
 
+**Via Homebrew (recommended):**
+
 ```bash
-git clone <repo-url> ~/craft
+brew tap stlasalle/craft
+brew install craft
+```
+
+**From source (for development):**
+
+```bash
+git clone git@github.com:stlasalle/craft.git ~/craft
 cd ~/craft
 make install
 ```
 
 This symlinks the `craft` command to `~/.local/bin/craft`. Make sure `~/.local/bin` is in your `PATH` (add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile if needed).
 
-Verify your setup:
+**Switching between Homebrew and local dev:**
+
+If you have both installed, the local symlink takes priority. Toggle with:
+
+```bash
+make install    # use local repo (changes take effect immediately)
+make uninstall  # use Homebrew install
+```
+
+**Verify your setup:**
 
 ```bash
 craft doctor
