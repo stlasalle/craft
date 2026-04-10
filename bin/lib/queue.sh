@@ -38,8 +38,19 @@ task_type() {
 }
 
 # Get depends_on as a space-separated list
+# Handles both inline [a, b] and multi-line - a\n- b YAML formats
 task_depends_on() {
     local file="$1"
+    local raw
+    raw=$(task_field "$file" "depends_on")
+
+    # Inline format: [task-001, task-002]
+    if [[ "$raw" == "["*"]" ]]; then
+        echo "$raw" | tr -d '[]' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$'
+        return
+    fi
+
+    # Multi-line format: depends_on:\n  - task-001
     sed -n '/^depends_on:/,/^[a-z]/p' "$file" | grep '^ *-' | sed 's/^ *- *//'
 }
 

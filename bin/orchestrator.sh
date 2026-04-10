@@ -84,6 +84,7 @@ source "$SCRIPT_DIR/lib/mux.sh"
 declare -A ACTIVE_TASKS=()  # task_id -> tmux window name
 declare -A TASK_AGENTS=()   # task_id -> agent provider (claude, codex, etc.)
 declare -A TASK_PR_URLS=()  # task_id -> PR URL (for merge monitoring)
+declare -A TASK_START=()    # task_id -> epoch timestamp when task started
 
 # --- Display ---
 RED='\033[0;31m'
@@ -232,6 +233,7 @@ run_task() {
     # Track it
     ACTIVE_TASKS["$tid"]="$window"
     TASK_AGENTS["$tid"]="$agent"
+    TASK_START["$tid"]="$(date +%s)"
 }
 
 # Find a task file by task ID across queue directories
@@ -247,16 +249,64 @@ find_task_in() {
     return 1
 }
 
-# Check if active tasks have finished
+# Get the timeout for a task (per-task override or global default, in seconds)
+# Returns empty string if no timeout is configured
+task_timeout() {
+    local tid="$1"
+    local task_file=""
+
+    # Find the task file in in-progress
+    task_file=$(find_task_in "$QUEUE_DIR/in-progress" "$tid" 2>/dev/null || true)
+    if [[ -n "$task_file" ]]; then
+        local per_task
+        per_task=$(task_field "$task_file" "timeout")
+        if [[ -n "$per_task" ]]; then
+            echo "$per_task"
+            return
+        fi
+    fi
+
+    echo "${AGENT_TIMEOUT:-}"
+}
+
+# Check if active tasks have finished or timed out
 check_active_tasks() {
     local session
     session="${TMUX_SESSION}-${PROJECT_NAME}"
+    local now
+    now=$(date +%s)
 
     for tid in "${!ACTIVE_TASKS[@]}"; do
+        # Check for timeout
+        local timeout
+        timeout=$(task_timeout "$tid")
+        if [[ -n "$timeout" ]] && [[ -n "${TASK_START[$tid]:-}" ]]; then
+            local elapsed=$(( now - TASK_START[$tid] ))
+            if (( elapsed > timeout )); then
+                log "Task $tid timed out after ${elapsed}s (limit: ${timeout}s)"
+
+                local task_file
+                task_file=$(find_task_in "$QUEUE_DIR/in-progress" "$tid" 2>/dev/null || true)
+                if [[ -n "$task_file" ]]; then
+                    append_work_log "$task_file" "Timed out by orchestrator after ${elapsed}s (limit: ${timeout}s)"
+                    move_task "$task_file" "$QUEUE_DIR/blocked" "blocked" > /dev/null
+                fi
+
+                kill_task_pane "$session" "$tid"
+                notify_blocked "$tid" "Agent timed out after ${elapsed}s"
+
+                unset ACTIVE_TASKS["$tid"]
+                unset TASK_AGENTS["$tid"]
+                unset TASK_START["$tid"]
+                continue
+            fi
+        fi
+
         if ! pane_is_running "$session" "$tid"; then
             log "Task $tid session ended"
             unset ACTIVE_TASKS["$tid"]
             unset TASK_AGENTS["$tid"]
+            unset TASK_START["$tid"]
 
             # Check where the task ended up
             if find_task_in "$QUEUE_DIR/done" "$tid" > /dev/null; then

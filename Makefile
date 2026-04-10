@@ -1,6 +1,6 @@
 PREFIX ?= $(HOME)/.local
 
-.PHONY: install uninstall version
+.PHONY: install uninstall version test
 
 install:
 	@mkdir -p $(PREFIX)/bin
@@ -18,3 +18,7 @@ uninstall:
 
 version:
 	@cat VERSION
+
+test:
+	@echo "Running tests..."
+	@bash $(CURDIR)/test/test-queue.sh

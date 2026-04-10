@@ -221,6 +221,7 @@ craft config my-project DEFAULT_AGENT codex     # set a value
 | `DEFAULT_AGENT` | `claude` | Agent CLI for task execution |
 | `ARCHITECT_AGENT` | `claude` | Agent CLI for the architect window |
 | `MULTIPLEXER` | `tmux` | Terminal multiplexer: `tmux` or `cmux` |
+| `AGENT_TIMEOUT` | *(none)* | Max seconds per task before auto-block (per-task override: `timeout:` in frontmatter) |
 | `OPERATOR_NAME` | git user | Your name, used in prompts |
 | `GITHUB_REVIEWER` | gh user | GitHub username for PR reviews |
 | `BRANCH_PREFIX` | *(empty)* | Prepended to branch names, e.g. `sls/` |
