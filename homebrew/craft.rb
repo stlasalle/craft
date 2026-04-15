@@ -2,7 +2,7 @@ class Craft < Formula
   desc "Project orchestration system for autonomous Claude Code agents"
   homepage "https://github.com/stlasalle/craft"
   url "https://github.com/stlasalle/craft/archive/refs/tags/v0.5.0.tar.gz"
-  sha256 "PLACEHOLDER"
+  sha256 "2bc5959dd5bf1381f795e63fa07a334065e5b2bbd4e2bf803343bdd5d99db1ce"
   license "MIT"
 
   depends_on "git"
