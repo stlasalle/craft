@@ -398,8 +398,22 @@ check_waiting_tasks() {
 
 # --- Main Loop ---
 
+# Handle nested tmux — if already inside tmux, unset TMUX to allow nesting
+# and use a different prefix (C-b) for the inner session so keys don't collide
+# with the outer session's prefix.
+CRAFT_NESTED_TMUX=""
+if [[ "$MULTIPLEXER" == "tmux" ]] && [[ -n "${TMUX:-}" ]]; then
+    CRAFT_NESTED_TMUX="$TMUX"
+    unset TMUX
+fi
+
 # Ensure multiplexer session with orchestrator + planner windows
 SESSION=$(ensure_session "$PROJECT_NAME" "$PROJECT_DIR")
+
+# If nested, set the inner session to use C-b so it doesn't collide with the outer prefix
+if [[ -n "$CRAFT_NESTED_TMUX" ]]; then
+    tmux set-option -t "$SESSION" prefix C-b 2>/dev/null || true
+fi
 
 # If using tmux and we're not already inside the session, re-exec inside the orchestrator pane
 if [[ "$MULTIPLEXER" == "tmux" ]]; then
