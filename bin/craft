@@ -35,6 +35,7 @@ craft — project orchestrator CLI (v${CRAFT_VERSION})
 Usage:
   craft init <project-name>          Scaffold a new project
   craft <project-name> [options]     Start the orchestrator
+  craft projects                     List all projects
   craft status <project-name>        Show project state at a glance
   craft config <project> [key] [val] Read or set project config
   craft plugin <subcommand>          Manage plugins
@@ -575,6 +576,33 @@ HELP
         ;;
     doctor)
         cmd_doctor "$@"
+        ;;
+    projects|ls)
+        if [[ ! -d "$CRAFT_PROJECTS" ]]; then
+            echo "No projects directory: $CRAFT_PROJECTS"
+            exit 1
+        fi
+        found=false
+        for d in "$CRAFT_PROJECTS"/*/; do
+            [[ -d "$d" ]] || continue
+            found=true
+            name=$(basename "$d")
+            # Source queue helpers for counts
+            source "$CRAFT_ROOT/bin/lib/queue.sh" 2>/dev/null
+            queue_dir="$d/queue"
+            n_in_progress=$(count_tasks "$queue_dir/in-progress" 2>/dev/null || echo 0)
+            n_waiting=$(count_tasks "$queue_dir/waiting" 2>/dev/null || echo 0)
+            n_done=$(count_tasks "$queue_dir/done" 2>/dev/null || echo 0)
+            n_pending=$(count_tasks "$queue_dir/pending" 2>/dev/null || echo 0)
+            n_approved=$(count_tasks "$queue_dir/approved" 2>/dev/null || echo 0)
+            n_blocked=$(count_tasks "$queue_dir/blocked" 2>/dev/null || echo 0)
+            total=$((n_pending + n_approved + n_in_progress + n_waiting + n_done + n_blocked))
+            printf "  %-24s %d tasks (%d done, %d in-progress, %d waiting, %d blocked)\n" \
+                "$name" "$total" "$n_done" "$n_in_progress" "$n_waiting" "$n_blocked"
+        done
+        if ! $found; then
+            echo "No projects yet. Create one with: craft init <project-name>"
+        fi
         ;;
     status)
         cmd_status "$@"
