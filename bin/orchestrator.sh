@@ -402,7 +402,7 @@ check_waiting_tasks() {
 # and use a different prefix (C-b) for the inner session so keys don't collide
 # with the outer session's prefix.
 CRAFT_NESTED_TMUX=""
-if [[ "$MULTIPLEXER" == "tmux" ]] && [[ -n "${TMUX:-}" ]]; then
+if [[ "$MULTIPLEXER" == "tmux" ]] && [[ -n "${TMUX:-}" ]] && [[ -z "${CRAFT_INNER_SESSION:-}" ]]; then
     CRAFT_NESTED_TMUX="$TMUX"
     unset TMUX
 fi
@@ -418,7 +418,7 @@ fi
 # If using tmux and we're not already inside the session, re-exec inside the orchestrator pane
 if [[ "$MULTIPLEXER" == "tmux" ]]; then
     if [[ -z "${TMUX:-}" ]] || [[ "$(tmux display-message -p '#{session_name}' 2>/dev/null)" != "$SESSION" ]]; then
-        tmux send-keys -t "${SESSION}:orchestrator" "exec '$0' '$PROJECT_DIR' --max-parallel $MAX_PARALLEL --poll-interval $POLL_INTERVAL" Enter
+        tmux send-keys -t "${SESSION}:orchestrator" "CRAFT_INNER_SESSION=1 exec '$0' '$PROJECT_DIR' --max-parallel $MAX_PARALLEL --poll-interval $POLL_INTERVAL" Enter
         exec tmux attach -t "$SESSION"
     fi
 fi
