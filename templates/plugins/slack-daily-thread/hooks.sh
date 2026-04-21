@@ -27,6 +27,35 @@ check_deps() {
     $ok
 }
 
+# Extract repo name from a GitHub PR URL (e.g. "content-moderation" from ".../content-moderation/pull/123")
+_repo_from_url() {
+    echo "$1" | sed 's|.*/\([^/]*\)/pull/.*|\1|'
+}
+
+# Check if a repo is allowed (allow list then exclude list)
+_repo_allowed() {
+    local repo="$1"
+
+    # Check allow list (empty = allow all)
+    if [[ -n "${SLACK_DAILY_THREAD_REPOS:-}" ]]; then
+        local found=false IFS=','
+        for allowed in $SLACK_DAILY_THREAD_REPOS; do
+            [[ "$(echo "$allowed" | xargs)" == "$repo" ]] && found=true
+        done
+        $found || return 1
+    fi
+
+    # Check exclude list
+    if [[ -n "${SLACK_DAILY_THREAD_REPOS_EXCLUDE:-}" ]]; then
+        local IFS=','
+        for excluded in $SLACK_DAILY_THREAD_REPOS_EXCLUDE; do
+            [[ "$(echo "$excluded" | xargs)" == "$repo" ]] && return 1
+        done
+    fi
+
+    return 0
+}
+
 # Called when a PR is marked as ready (draft → ready)
 on_ready() {
     local pr_url="" pr_number="" pr_title=""
@@ -38,6 +67,13 @@ on_ready() {
             *) shift ;;
         esac
     done
+
+    # Check repo allowlist
+    local repo
+    repo=$(_repo_from_url "$pr_url")
+    if ! _repo_allowed "$repo"; then
+        return 0
+    fi
 
     # Get today's thread timestamp
     local thread_ts
