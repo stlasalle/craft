@@ -96,7 +96,7 @@ Before moving to waiting, review your own PR. This catches issues before the ope
 
 After self-review, move the task to the waiting state so the orchestrator can notify {{OPERATOR_NAME}}.
 
-1. Update the task frontmatter: set `status: waiting`
+1. Update the task frontmatter: set `status: waiting` and set `waiting:` to the current UTC timestamp in ISO 8601 format (e.g. `2024-01-15T14:30:00Z`)
 2. Move the file: `queue/in-progress/{task}.md` → `queue/waiting/{task}.md`
 3. Append a work log entry:
    ```
@@ -106,45 +106,58 @@ After self-review, move the task to the waiting state so the orchestrator can no
 
 ## Step 9: Monitor PR Until Merge
 
-After moving to waiting, enter a polling loop.
+After moving to waiting, enter a polling loop. **This loop must keep running until the PR is merged or closed.** Do not stop polling for any other reason — CI passing, the PR still being a draft, or any other intermediate state is NOT a reason to stop.
 
-Track whether the PR is still a draft. Initially it will be `isDraft: true`.
+Track whether the PR is still a draft. Initially it will be `isDraft: true`. Track the number of review comments you've already seen so you can detect new ones.
 
-**Polling loop (every ~15 seconds):**
+**Implement the polling loop as a bash while loop:**
+
+```bash
+while true; do
+  sleep 15
+  gh pr view {number} --json state,isDraft,reviews,comments,mergedAt,statusCheckRollup,title
+  # ... check conditions below and act on them, then continue the loop
+done
+```
+
+**On each iteration, check these conditions in order:**
 
 1. Check PR status using `gh pr view {number} --json state,isDraft,reviews,comments,mergedAt,statusCheckRollup,title`
 2. If the PR has been **merged** (`state: MERGED`):
-   - Exit the polling loop
+   - **Exit the polling loop** — this is the ONLY successful exit condition
    - Proceed to Step 10 (Complete Task)
-3. If the PR was **previously a draft** but is now **no longer a draft** (`isDraft` changed from `true` to `false`):
+3. If the PR has been **closed** (not merged):
+   - Append a work log entry noting the PR was closed
+   - Move the task to `queue/blocked/` with an explanation
+   - **Exit the polling loop** — this is the ONLY failure exit condition
+4. If the PR was **previously a draft** but is now **no longer a draft** (`isDraft` changed from `true` to `false`):
    - The operator has marked it as ready for review
    - Run the `on_ready` plugin hook if available: `plugins/run-hook.sh on_ready --pr-url {pr-url} --pr-number {pr-number} --pr-title "{pr-title}"` (skip silently if the script doesn't exist)
    - Append a work log entry: "PR marked as ready"
-   - Update your tracked draft state so you don't post again
-4. If **CI checks have failed** (any item in `statusCheckRollup` has `conclusion: FAILURE`):
+   - Update your tracked draft state so you don't fire this again
+   - **Continue polling** — do NOT exit the loop
+5. If **CI checks have failed** (any item in `statusCheckRollup` has `conclusion: FAILURE`):
    - Read the failed check details: `gh pr checks {number}`
    - Investigate the failure — look at CI build logs, test output, linting errors
    - Fix the issue in the code
    - Commit and push with a descriptive conventional commit message
    - Append a work log entry noting the CI failure and your fix
-5. If there are **new review comments or PR comments** since last check:
+   - **Continue polling** — do NOT exit the loop
+6. If there are **new review comments or PR comments** since last check:
    - Read and understand the feedback
    - Make the requested changes in the code
    - Commit and push with a descriptive conventional commit message
    - Append a work log entry noting the review feedback and your response
-6. If the PR has been **closed** (not merged):
-   - Append a work log entry noting the PR was closed
-   - Move the task to `queue/blocked/` with an explanation
-   - Stop polling
-7. Otherwise, sleep ~15 seconds and check again
+   - **Continue polling** — do NOT exit the loop
+7. **Continue polling** — sleep and check again. Do not print "waiting" messages or summaries on every iteration.
 
-**Important:** The operator will mark the PR as "ready" after their initial review. Automated PR bots will then review the PR too, adding more comments/reviews. CI checks run on every push. Stay alive to handle all rounds of feedback — both human reviews and CI failures.
+**Critical:** The ONLY reasons to exit the loop are: PR merged (→ Step 10) or PR closed (→ blocked). Everything else — CI passing, CI pending, draft status, no new comments, waiting for review — means you keep polling. The operator will mark the PR as "ready" after their initial review. Automated PR bots will then review it too, adding comments/reviews. CI checks run on every push. You must stay alive to handle all rounds of feedback.
 
 ## Step 10: Complete Task
 
 Only reach this step when the PR has been merged.
 
-1. Update the task frontmatter: set `status: done`
+1. Update the task frontmatter: set `status: done` and set `done:` to the current UTC timestamp in ISO 8601 format (e.g. `2024-01-15T14:30:00Z`)
 2. Move the file: `queue/waiting/{task}.md` → `queue/done/{task}.md`
 3. Append a completion entry to the Work Log:
    ```
@@ -154,14 +167,16 @@ Only reach this step when the PR has been merged.
    ```
 4. Update `state.md` with the latest activity
 5. Do NOT clean up the worktree — leave it in place. The operator will clean up worktrees manually.
+6. Run `/exit` to end this session. The orchestrator will detect the session has ended and clean up the tmux pane.
 
 ## Failure Handling
 
 If you hit an unrecoverable error at any point:
 1. Move the task to `queue/blocked/{task}.md`
-2. Set `status: blocked` in frontmatter
+2. Set `status: blocked` in frontmatter, set `blocked:` to the current UTC timestamp in ISO 8601 format, and set `one_shot: false`
 3. Write a clear explanation in the Work Log: what you tried, what failed, what the operator needs to do
 4. Update `state.md` to reflect the blocked task
+5. Run `/exit` to end this session. The orchestrator will detect the session has ended and clean up the tmux pane.
 
 ## Important Rules
 

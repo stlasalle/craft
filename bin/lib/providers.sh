@@ -11,14 +11,14 @@ provider_task_cmd() {
 
     case "$provider" in
         claude)
-            echo "cd '${work_dir}' && claude \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'; exec \$SHELL"
+            echo "cd '${work_dir}' && claude --allowedTools 'Bash' 'Read' 'Edit' 'Write' 'Glob' 'Grep' 'Agent' 'WebFetch' 'WebSearch' \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'"
             ;;
         codex)
-            echo "cd '${work_dir}' && codex \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'; exec \$SHELL"
+            echo "cd '${work_dir}' && codex --full-auto \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'"
             ;;
         *)
             # Generic fallback: assume CLI takes prompt as first positional arg
-            echo "cd '${work_dir}' && ${provider} \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'; exec \$SHELL"
+            echo "cd '${work_dir}' && ${provider} \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'"
             ;;
     esac
 }

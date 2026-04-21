@@ -71,5 +71,16 @@ if [[ -f "$FORMULA" ]]; then
         sed -i "" "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
     fi
     echo "Updated homebrew/craft.rb with new URL and SHA256."
-    echo "Commit and push the formula to your homebrew-craft tap repo."
+
+    # Push the formula to the homebrew-craft tap repo
+    TAP_DIR="$(brew --repo stlasalle/craft 2>/dev/null)" || true
+    if [[ -d "$TAP_DIR/Formula" ]]; then
+        cp "$FORMULA" "$TAP_DIR/Formula/craft.rb"
+        git -C "$TAP_DIR" add Formula/craft.rb
+        git -C "$TAP_DIR" commit -m "Update formula to ${TAG}"
+        git -C "$TAP_DIR" push origin main
+        echo "Pushed formula update to homebrew-craft tap."
+    else
+        echo "Warning: homebrew-craft tap not found. Manually copy the formula to your tap repo."
+    fi
 fi

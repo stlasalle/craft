@@ -89,9 +89,28 @@ move_task() {
     local file="$1" target_dir="$2" new_status="$3"
     local filename="$(basename "$file")"
     local target="$target_dir/$filename"
+    local timestamp
+    timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
     # Update status in frontmatter
     _sed_i "s/^status:.*/status: $new_status/" "$file"
+
+    # Set timestamp for the target status
+    case "$new_status" in
+        in-progress)
+            _sed_i "s/^started:.*/started: $timestamp/" "$file"
+            ;;
+        waiting)
+            _sed_i "s/^waiting:.*/waiting: $timestamp/" "$file"
+            ;;
+        done)
+            _sed_i "s/^done:.*/done: $timestamp/" "$file"
+            ;;
+        blocked)
+            _sed_i "s/^blocked:.*/blocked: $timestamp/" "$file"
+            _sed_i "s/^one_shot:.*/one_shot: false/" "$file"
+            ;;
+    esac
 
     # Move the file
     mv "$file" "$target"

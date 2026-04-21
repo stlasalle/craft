@@ -196,6 +196,70 @@ echo "append_work_log"
 append_work_log "$QUEUE_DIR/in-progress/task-004.md" "Test log entry"
 assert_eq "appends to file" "1" "$(grep -c 'Test log entry' "$QUEUE_DIR/in-progress/task-004.md")"
 
+echo ""
+echo "move_task timestamps"
+cat > "$QUEUE_DIR/approved/task-005.md" << 'EOF'
+---
+id: task-005
+type: pr
+milestone: m1-foundation
+status: approved
+depends_on: []
+repos: [my-repo]
+branch: feat/timestamps
+created: 2024-01-15
+started:
+waiting:
+done:
+blocked:
+one_shot: true
+---
+
+# Test timestamps
+EOF
+
+# in-progress should set started timestamp
+new_file=$(move_task "$QUEUE_DIR/approved/task-005.md" "$QUEUE_DIR/in-progress" "in-progress")
+assert_eq "sets started timestamp" "1" "$(task_field "$new_file" "started" | grep -c '^[0-9]\{4\}-')"
+assert_eq "one_shot still true after start" "true" "$(task_field "$new_file" "one_shot")"
+
+# waiting should set waiting timestamp
+mkdir -p "$QUEUE_DIR/waiting"
+new_file=$(move_task "$new_file" "$QUEUE_DIR/waiting" "waiting")
+assert_eq "sets waiting timestamp" "1" "$(task_field "$new_file" "waiting" | grep -c '^[0-9]\{4\}-')"
+assert_eq "one_shot still true after waiting" "true" "$(task_field "$new_file" "one_shot")"
+
+# done should set done timestamp
+new_file=$(move_task "$new_file" "$QUEUE_DIR/done" "done")
+assert_eq "sets done timestamp" "1" "$(task_field "$new_file" "done" | grep -c '^[0-9]\{4\}-')"
+assert_eq "one_shot true on happy path" "true" "$(task_field "$new_file" "one_shot")"
+
+echo ""
+echo "move_task blocked sets one_shot false"
+cat > "$QUEUE_DIR/in-progress/task-006.md" << 'EOF'
+---
+id: task-006
+type: pr
+milestone: m1-foundation
+status: in-progress
+depends_on: []
+repos: [my-repo]
+branch: feat/blocked
+created: 2024-01-15
+started: 2024-01-15T10:00:00Z
+waiting:
+done:
+blocked:
+one_shot: true
+---
+
+# Test blocked
+EOF
+
+new_file=$(move_task "$QUEUE_DIR/in-progress/task-006.md" "$QUEUE_DIR/blocked" "blocked")
+assert_eq "sets blocked timestamp" "1" "$(task_field "$new_file" "blocked" | grep -c '^[0-9]\{4\}-')"
+assert_eq "one_shot false when blocked" "false" "$(task_field "$new_file" "one_shot")"
+
 # --- Summary ---
 
 echo ""

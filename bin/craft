@@ -37,6 +37,7 @@ Usage:
   craft <project-name> [options]     Start the orchestrator
   craft projects                     List all projects
   craft status <project-name>        Show project state at a glance
+  craft metrics <project-name>       Show task performance metrics
   craft config <project> [key] [val] Read or set project config
   craft plugin <subcommand>          Manage plugins
   craft doctor                       Check dependencies
@@ -522,6 +523,158 @@ HELP
     fi
 }
 
+# Convert an ISO 8601 timestamp or YYYY-MM-DD date to epoch seconds
+_to_epoch() {
+    local ts="$1"
+    [[ -z "$ts" ]] && return 1
+    # macOS: try ISO 8601 then date-only (as UTC)
+    if date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$ts" '+%s' 2>/dev/null; then return; fi
+    if date -j -u -f '%Y-%m-%d' "$ts" '+%s' 2>/dev/null; then return; fi
+    # GNU/Linux (append UTC if date-only to avoid timezone mismatch)
+    if date -u -d "$ts" '+%s' 2>/dev/null; then return; fi
+    return 1
+}
+
+# Format seconds into human-readable duration
+_format_duration() {
+    local s="$1"
+    if (( s < 60 )); then echo "${s}s"
+    elif (( s < 3600 )); then echo "$(( s / 60 ))m $(( s % 60 ))s"
+    elif (( s < 86400 )); then echo "$(( s / 3600 ))h $(( (s % 3600) / 60 ))m"
+    else echo "$(( s / 86400 ))d $(( (s % 86400) / 3600 ))h"
+    fi
+}
+
+cmd_metrics() {
+    if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+        cat << 'HELP'
+craft metrics — Show task performance metrics
+
+Usage:
+  craft metrics <project-name>
+
+Reports on completed task metrics including one-shot success rate
+and average durations per phase.
+HELP
+        exit 0
+    fi
+
+    local project_name="${1:-}"
+    if [[ -z "$project_name" ]]; then
+        echo "Usage: craft metrics <project-name>"
+        exit 1
+    fi
+
+    local project_dir="$CRAFT_PROJECTS/$project_name"
+    if [[ ! -d "$project_dir" ]]; then
+        echo "Project not found: $project_dir"
+        exit 1
+    fi
+
+    local queue_dir="$project_dir/queue"
+    source "$CRAFT_ROOT/bin/lib/queue.sh"
+
+    # Queue snapshot
+    local n_pending n_approved n_in_progress n_waiting n_done n_blocked
+    n_pending=$(count_tasks "$queue_dir/pending" 2>/dev/null || echo 0)
+    n_approved=$(count_tasks "$queue_dir/approved" 2>/dev/null || echo 0)
+    n_in_progress=$(count_tasks "$queue_dir/in-progress" 2>/dev/null || echo 0)
+    n_waiting=$(count_tasks "$queue_dir/waiting" 2>/dev/null || echo 0)
+    n_done=$(count_tasks "$queue_dir/done" 2>/dev/null || echo 0)
+    n_blocked=$(count_tasks "$queue_dir/blocked" 2>/dev/null || echo 0)
+
+    # Collect completed tasks (done + archive)
+    local task_files=()
+    while IFS= read -r f; do
+        [[ -f "$f" ]] && task_files+=("$f")
+    done < <(list_tasks "$queue_dir/done" 2>/dev/null; find "$queue_dir/archive" -name '*.md' -not -name '.gitkeep' 2>/dev/null | sort)
+
+    local total=0 one_shot_count=0
+    local sum_to_started=0 n_to_started=0
+    local sum_to_waiting=0 n_to_waiting=0
+    local sum_to_done=0 n_to_done=0
+    local sum_total=0 n_total=0
+
+    for f in "${task_files[@]}"; do
+        total=$((total + 1))
+
+        local os
+        os=$(task_field "$f" "one_shot")
+        [[ "$os" == "true" ]] && one_shot_count=$((one_shot_count + 1))
+
+        local t_created t_started t_waiting t_done
+        t_created=$(task_field "$f" "created")
+        t_started=$(task_field "$f" "started")
+        t_waiting=$(task_field "$f" "waiting")
+        t_done=$(task_field "$f" "done")
+
+        local e_created e_started e_waiting e_done
+        e_created=$(_to_epoch "$t_created" 2>/dev/null) || e_created=""
+        e_started=$(_to_epoch "$t_started" 2>/dev/null) || e_started=""
+        e_waiting=$(_to_epoch "$t_waiting" 2>/dev/null) || e_waiting=""
+        e_done=$(_to_epoch "$t_done" 2>/dev/null) || e_done=""
+
+        if [[ -n "$e_created" ]] && [[ -n "$e_started" ]]; then
+            sum_to_started=$(( sum_to_started + e_started - e_created ))
+            n_to_started=$(( n_to_started + 1 ))
+        fi
+        if [[ -n "$e_started" ]] && [[ -n "$e_waiting" ]]; then
+            sum_to_waiting=$(( sum_to_waiting + e_waiting - e_started ))
+            n_to_waiting=$(( n_to_waiting + 1 ))
+        fi
+        if [[ -n "$e_waiting" ]] && [[ -n "$e_done" ]]; then
+            sum_to_done=$(( sum_to_done + e_done - e_waiting ))
+            n_to_done=$(( n_to_done + 1 ))
+        fi
+        if [[ -n "$e_created" ]] && [[ -n "$e_done" ]]; then
+            sum_total=$(( sum_total + e_done - e_created ))
+            n_total=$(( n_total + 1 ))
+        fi
+    done
+
+    # Output
+    echo "craft metrics: $project_name"
+    echo ""
+    echo "Queue:"
+    printf "  %-14s %s\n" "Pending:" "$n_pending"
+    printf "  %-14s %s\n" "Approved:" "$n_approved"
+    printf "  %-14s %s\n" "In Progress:" "$n_in_progress"
+    printf "  %-14s %s\n" "Waiting:" "$n_waiting"
+    printf "  %-14s %s\n" "Done:" "$n_done"
+    printf "  %-14s %s\n" "Blocked:" "$n_blocked"
+    echo ""
+
+    if [[ $total -gt 0 ]]; then
+        local pct=$(( one_shot_count * 100 / total ))
+        echo "One-Shot Rate:   ${one_shot_count}/${total} (${pct}%)"
+    else
+        echo "One-Shot Rate:   — (no completed tasks)"
+    fi
+    echo ""
+
+    echo "Average Durations:"
+    if [[ $n_to_started -gt 0 ]]; then
+        printf "  Created → Started:   %s (n=%d)\n" "$(_format_duration $(( sum_to_started / n_to_started )))" "$n_to_started"
+    else
+        echo "  Created → Started:   —"
+    fi
+    if [[ $n_to_waiting -gt 0 ]]; then
+        printf "  Started → PR:        %s (n=%d)\n" "$(_format_duration $(( sum_to_waiting / n_to_waiting )))" "$n_to_waiting"
+    else
+        echo "  Started → PR:        —"
+    fi
+    if [[ $n_to_done -gt 0 ]]; then
+        printf "  PR → Done:           %s (n=%d)\n" "$(_format_duration $(( sum_to_done / n_to_done )))" "$n_to_done"
+    else
+        echo "  PR → Done:           —"
+    fi
+    if [[ $n_total -gt 0 ]]; then
+        printf "  Total (end-to-end):  %s (n=%d)\n" "$(_format_duration $(( sum_total / n_total )))" "$n_total"
+    else
+        echo "  Total (end-to-end):  —"
+    fi
+}
+
 # --- Main dispatch ---
 
 if [[ $# -eq 0 ]] || [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "help" ]]; then
@@ -606,6 +759,9 @@ HELP
         ;;
     status)
         cmd_status "$@"
+        ;;
+    metrics)
+        cmd_metrics "$@"
         ;;
     *)
         PROJECT_NAME="$SUBCOMMAND"

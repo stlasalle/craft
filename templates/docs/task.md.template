@@ -7,6 +7,11 @@ depends_on: []
 repos: []
 branch: sls/{{TICKET}}/{{BRANCH_NAME}}
 created: {{DATE}}
+started:
+waiting:
+done:
+blocked:
+one_shot: true
 qa:
   unit_tests: true
   integration_tests: false
