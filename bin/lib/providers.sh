@@ -11,7 +11,7 @@ provider_task_cmd() {
 
     case "$provider" in
         claude)
-            echo "cd '${work_dir}' && claude --dangerously-skip-permissions \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'"
+            echo "cd '${work_dir}' && claude \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'"
             ;;
         codex)
             echo "cd '${work_dir}' && codex --full-auto \"\$(cat '${prompt_file}')\" ; rm -f '${prompt_file}'"
