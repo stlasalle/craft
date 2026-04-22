@@ -5,7 +5,7 @@
 # Add new providers by extending the case statements below.
 
 # Build provider-specific CLI flags from config variables.
-# Looks for <PROVIDER>_APPROVAL_MODE (e.g. CODEX_APPROVAL_MODE=full-auto).
+# Looks for <PROVIDER>_APPROVAL_MODE (e.g. CODEX_APPROVAL_MODE=bypass).
 # Usage: provider_flags <provider>
 provider_flags() {
     local provider="$1"
@@ -17,14 +17,20 @@ provider_flags() {
 
     case "$provider" in
         codex)
-            if [[ "$approval" == "full-auto" ]]; then
+            # bypass:    no approvals, no sandbox (--dangerously-bypass-approvals-and-sandbox)
+            # never:     no approvals, sandboxed (-a never)
+            # full-auto: model decides when to ask, sandboxed (--full-auto)
+            # auto-edit, on-request, untrusted: passed through to -a
+            if [[ "$approval" == "bypass" ]]; then
+                echo "--dangerously-bypass-approvals-and-sandbox"
+            elif [[ "$approval" == "full-auto" ]]; then
                 echo "--full-auto"
             elif [[ -n "$approval" ]]; then
-                echo "--approval-mode $approval"
+                echo "-a $approval"
             fi
             ;;
         claude)
-            if [[ "$approval" == "full-auto" ]]; then
+            if [[ "$approval" == "bypass" || "$approval" == "full-auto" ]]; then
                 echo "--dangerously-skip-permissions"
             fi
             ;;
