@@ -1,8 +1,8 @@
 class Craft < Formula
   desc "Project orchestration system for autonomous Claude Code agents"
   homepage "https://github.com/stlasalle/craft"
-  url "https://github.com/stlasalle/craft/archive/refs/tags/v0.7.4.tar.gz"
-  sha256 "7654c09668a073d82d530389577cfa9e3c76842235c93c5388291e7aa92ba7ae"
+  url "https://github.com/stlasalle/craft/archive/refs/tags/v0.7.5.tar.gz"
+  sha256 "e6e39392c77665786df4b852d10c1d71f312de9359a14ce484697d27ae8c7269"
   license "MIT"
 
   depends_on "git"
