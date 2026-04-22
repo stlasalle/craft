@@ -20,14 +20,17 @@ ensure_session() {
 
     # Ensure architect window exists — an agent session pre-loaded with project context
     if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^architect$'; then
+        tmux new-window -t "${session}:" -n "architect"
         if [[ -n "${project_dir:-}" ]]; then
             local skill_file="${project_dir}/.claude/commands/init-architect.md"
             local architect_agent="${ARCHITECT_AGENT:-claude}"
             local cmd
             cmd=$(provider_architect_cmd "$architect_agent" "$skill_file" "$project_dir")
-            tmux new-window -t "${session}:" -n "architect" "$cmd"
-        else
-            tmux new-window -t "${session}:" -n "architect"
+            # Use send-keys so the agent runs inside an interactive shell.
+            # Passing the command to new-window runs it as the window's initial
+            # process, which breaks TUI input (arrow keys, etc.) for agents
+            # like codex that use interactive terminal frameworks.
+            tmux send-keys -t "${session}:architect" "$cmd" Enter
         fi
         tmux select-window -t "${session}:orchestrator"
     fi
@@ -44,8 +47,12 @@ spawn_task_pane() {
     local cmd
     cmd=$(provider_task_cmd "$agent" "$prompt_file" "$work_dir")
 
+    # Create window with a shell first, then send the command via send-keys.
+    # This ensures the agent runs inside an interactive shell pty, so TUI
+    # input (arrow keys, etc.) works if the operator jumps into the pane.
     local window_id
-    window_id=$(tmux new-window -t "${session}:" -n "$task_id" -P -F '#{window_id}' "$cmd")
+    window_id=$(tmux new-window -t "${session}:" -n "$task_id" -P -F '#{window_id}')
+    tmux send-keys -t "${session}:${task_id}" "$cmd" Enter
 
     echo "$window_id"
 }
