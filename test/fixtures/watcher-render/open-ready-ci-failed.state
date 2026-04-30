@@ -1,0 +1,10 @@
+state=OPEN
+is_draft=false
+mergeable=MERGEABLE
+checks_conclusion=FAILURE
+review_count=2
+comment_count=3
+approved_count=1
+changes_requested_count=1
+last_action=event: ci_failed → dispatched /fix-ci-failure
+last_action_at=2026-04-29T14:32:01Z

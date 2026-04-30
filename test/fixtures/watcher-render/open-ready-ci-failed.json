@@ -1,0 +1,22 @@
+{
+  "state": "OPEN",
+  "isDraft": false,
+  "mergeable": "MERGEABLE",
+  "title": "fix: cache invalidation in user service",
+  "number": 137,
+  "mergedAt": null,
+  "statusCheckRollup": [
+    {"name": "lint", "conclusion": "SUCCESS", "status": "COMPLETED"},
+    {"name": "unit-tests", "conclusion": "SUCCESS", "status": "COMPLETED"},
+    {"name": "integration", "conclusion": "FAILURE", "status": "COMPLETED"}
+  ],
+  "reviews": [
+    {"state": "APPROVED", "author": {"login": "alice"}},
+    {"state": "CHANGES_REQUESTED", "author": {"login": "bob"}}
+  ],
+  "comments": [
+    {"id": "c1"},
+    {"id": "c2"},
+    {"id": "c3"}
+  ]
+}

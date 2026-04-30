@@ -1,0 +1,14 @@
+{
+  "state": "OPEN",
+  "isDraft": true,
+  "mergeable": "MERGEABLE",
+  "title": "feat: add widget",
+  "number": 42,
+  "mergedAt": null,
+  "statusCheckRollup": [
+    {"name": "lint", "conclusion": "SUCCESS", "status": "COMPLETED"},
+    {"name": "unit-tests", "conclusion": null, "status": "IN_PROGRESS"}
+  ],
+  "reviews": [],
+  "comments": []
+}

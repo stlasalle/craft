@@ -102,101 +102,9 @@ clear_screen() {
 
 render_dashboard() {
     clear_screen
-
-    echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}║  CRAFT ORCHESTRATOR — ${CYAN}${PROJECT_NAME}${NC}${BOLD}$(printf '%*s' $((28 - ${#PROJECT_NAME})) '')║${NC}"
-    echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
+    "$SCRIPT_DIR/render-dashboard.sh" "$PROJECT_DIR"
     echo ""
-
-    # Counts
-    local n_pending n_approved n_in_progress n_done n_blocked n_waiting
-    n_pending=$(count_tasks "$QUEUE_DIR/pending")
-    n_approved=$(count_tasks "$QUEUE_DIR/approved")
-    n_in_progress=$(count_tasks "$QUEUE_DIR/in-progress")
-    n_done=$(count_tasks "$QUEUE_DIR/done")
-    n_blocked=$(count_tasks "$QUEUE_DIR/blocked")
-    n_waiting=$(count_tasks "$QUEUE_DIR/waiting")
-
-    echo -e "  ${BLUE}○${NC} Pending: $n_pending  ${YELLOW}◐${NC} Approved: $n_approved  ${CYAN}●${NC} In Progress: $n_in_progress  ${YELLOW}◉${NC} Waiting: $n_waiting  ${GREEN}✓${NC} Done: $n_done  ${RED}✗${NC} Blocked: $n_blocked"
-    echo ""
-
-    # Waiting tasks — needs operator attention (PR review)
-    if [[ "$n_waiting" -gt 0 ]]; then
-        echo -e "${BOLD}${YELLOW}  ◉ WAITING FOR REVIEW:${NC}"
-        for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
-            local tid pr_url
-            tid=$(task_id "$task_file")
-            pr_url=$(task_field "$task_file" "pr")
-            if [[ -n "$pr_url" ]]; then
-                echo -e "    ${YELLOW}◉${NC} $tid  ${CYAN}$pr_url${NC}"
-            else
-                echo -e "    ${YELLOW}◉${NC} $tid"
-            fi
-        done
-        echo ""
-    fi
-
-    # Blocked tasks (important — surface these prominently)
-    if [[ "$n_blocked" -gt 0 ]]; then
-        echo -e "${BOLD}${RED}  ⚠ BLOCKED TASKS:${NC}"
-        for task_file in $(list_tasks "$QUEUE_DIR/blocked"); do
-            local tid
-            tid=$(task_id "$task_file")
-            echo -e "    ${RED}✗${NC} $tid — $(head -20 "$task_file" | grep '^## Summary' -A1 | tail -1 | sed 's/^[[:space:]]*//')"
-        done
-        echo ""
-    fi
-
-    # Active tasks
-    if [[ ${#ACTIVE_TASKS[@]} -gt 0 ]]; then
-        echo -e "${BOLD}  Active Tasks:${NC}"
-        for task_id in "${!ACTIVE_TASKS[@]}"; do
-            local agent_label="${TASK_AGENTS[$task_id]:-$DEFAULT_AGENT}"
-            echo -e "    ${CYAN}●${NC} $task_id  [${agent_label}] [tmux: ${ACTIVE_TASKS[$task_id]}]"
-        done
-        echo ""
-    fi
-
-    # Active watchers
-    if [[ ${#ACTIVE_WATCHERS[@]} -gt 0 ]]; then
-        echo -e "${BOLD}  Active Watchers:${NC}"
-        for pr_number in "${!ACTIVE_WATCHERS[@]}"; do
-            echo -e "    ${YELLOW}◉${NC} PR #$pr_number  [tmux: ${ACTIVE_WATCHERS[$pr_number]}]"
-        done
-        echo ""
-    fi
-
-    # Approved tasks queued
-    if [[ "$n_approved" -gt 0 ]]; then
-        echo -e "${BOLD}  Queue (approved):${NC}"
-        for task_file in $(list_tasks "$QUEUE_DIR/approved"); do
-            local tid dep_status
-            tid=$(task_id "$task_file")
-            if task_deps_met "$task_file"; then
-                dep_status="${GREEN}ready${NC}"
-            else
-                dep_status="${YELLOW}waiting on deps${NC}"
-            fi
-            echo -e "    ${YELLOW}◐${NC} $tid  [$dep_status]"
-        done
-        echo ""
-    fi
-
-    # Recent done
-    if [[ "$n_done" -gt 0 ]]; then
-        echo -e "${BOLD}  Recently Completed:${NC}"
-        for task_file in $(list_tasks "$QUEUE_DIR/done" | tail -5); do
-            local tid
-            tid=$(task_id "$task_file")
-            echo -e "    ${GREEN}✓${NC} $tid"
-        done
-        echo ""
-    fi
-
-    # Footer
-    local now
-    now=$(date '+%H:%M:%S')
-    echo -e "  ${BOLD}Last poll:${NC} $now  ${BOLD}Parallel limit:${NC} $MAX_PARALLEL  ${BOLD}Poll interval:${NC} ${POLL_INTERVAL}s  ${BOLD}Agent:${NC} $DEFAULT_AGENT"
+    echo -e "  ${BOLD}Last poll:${NC} $(date '+%H:%M:%S')  ${BOLD}Parallel limit:${NC} $MAX_PARALLEL  ${BOLD}Poll interval:${NC} ${POLL_INTERVAL}s  ${BOLD}Agent:${NC} $DEFAULT_AGENT"
     echo -e "  ${BOLD}Ctrl+C${NC} to stop orchestrator"
 }
 
@@ -389,8 +297,12 @@ check_active_tasks() {
 }
 
 # Check for milestone completion
+# Check for milestone completion
 check_milestone_completion() {
-    # Get all milestones that have tasks
+    local marker_dir="$PROJECT_DIR/.state/notified-milestones"
+    mkdir -p "$marker_dir"
+
+    # Get all milestones that have tasks.
     local milestones
     milestones=$(for f in "$QUEUE_DIR"/done/*.md "$QUEUE_DIR"/approved/*.md "$QUEUE_DIR"/in-progress/*.md "$QUEUE_DIR"/pending/*.md; do
         [[ -f "$f" ]] && task_milestone "$f"
@@ -399,7 +311,7 @@ check_milestone_completion() {
     for milestone in $milestones; do
         [[ -z "$milestone" ]] && continue
 
-        # Check if all tasks for this milestone are done
+        # Check if all tasks for this milestone are done.
         local all_done=true
         for dir in pending approved in-progress blocked; do
             for f in "$QUEUE_DIR/$dir"/*.md; do
@@ -412,7 +324,6 @@ check_milestone_completion() {
         done
 
         if $all_done; then
-            # Check there are actually done tasks for this milestone
             local has_done=false
             for f in "$QUEUE_DIR/done"/*.md; do
                 [[ -f "$f" ]] || continue
@@ -423,9 +334,19 @@ check_milestone_completion() {
             done
 
             if $has_done; then
-                notify_milestone "$milestone"
-                log "Milestone complete: $milestone — run /consolidate $milestone"
+                local marker="$marker_dir/$milestone"
+                if [[ ! -f "$marker" ]]; then
+                    touch "$marker"
+                    notify_milestone "$milestone"
+                    log "Milestone complete: $milestone — run /consolidate $milestone"
+                fi
             fi
+        else
+            # Milestone is no longer fully done (a new task entered a
+            # non-done state). Clear the marker so a future re-completion
+            # re-notifies.
+            local marker="$marker_dir/$milestone"
+            [[ -f "$marker" ]] && rm -f "$marker"
         fi
     done
 }

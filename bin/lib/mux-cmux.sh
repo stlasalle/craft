@@ -116,20 +116,46 @@ spawn_watcher_pane() {
     local session="$1" pr_number="$2" cmd="$3"
     local window_name="watch-pr-${pr_number}"
 
-    # Select the workspace and create a new split
+    # Locate the renderer and the state files (same logic as mux-tmux.sh).
+    local lib_dir
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local renderer="${lib_dir%/lib}/render-watcher-status.sh"
+    local project_dir
+    project_dir=$(echo "$cmd" | sed -nE "s/.*--project-dir '([^']*)'.*/\\1/p")
+    local state_file="${project_dir}/.state/watchers/${pr_number}.state"
+    local json_file="${project_dir}/.state/watchers/${pr_number}.json"
+
+    local refresh_cmd="while true; do
+        clear
+        if [[ -f '$state_file' && -f '$json_file' ]]; then
+            '$renderer' '$state_file' '$json_file' || echo 'renderer error'
+        else
+            echo 'waiting for first poll…'
+        fi
+        sleep 5
+    done"
+
+    # Create the watcher pane (matches the existing pattern in this file).
     cmux select-workspace "$session" 2>/dev/null || true
     local surface_id
     surface_id=$(cmux new-split down 2>/dev/null || true)
-
-    # Set surface title/status for identification
     cmux set-status "watcher" "$window_name" 2>/dev/null || true
-
-    # Send the command
     cmux send "$cmd" 2>/dev/null || true
     cmux send-key enter 2>/dev/null || true
 
-    # Track the surface (mirror spawn_task_pane pattern)
-    CMUX_SURFACES["$window_name"]="${surface_id:-$window_name}"
+    # Save reference for pane_is_running.
+    if [[ -n "${CMUX_SURFACES:-}" ]]; then
+        CMUX_SURFACES["$window_name"]="${surface_id:-$window_name}"
+    fi
+
+    # Add the status pane above the watcher pane.
+    cmux new-split up 2>/dev/null || true
+    cmux set-status "watcher-status" "${window_name}-status" 2>/dev/null || true
+    cmux send "$refresh_cmd" 2>/dev/null || true
+    cmux send-key enter 2>/dev/null || true
+
+    # Move focus back to the watcher (log) pane.
+    cmux select-split down 2>/dev/null || true
 
     echo "${surface_id:-$window_name}"
 }

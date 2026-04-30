@@ -151,15 +151,24 @@ fi
 
 while true; do
     pr_json=$(gh pr view "$PR_URL" --json state,isDraft,mergeable,statusCheckRollup,reviews,comments,mergedAt,title,number 2>/dev/null) || {
-        log "gh pr view failed; retrying after interval"
+        # Dedupe: only log the first failure of a run and the recovery.
+        if [[ "${gh_failing:-0}" != "1" ]]; then
+            log "gh pr view failed; will retry every ${POLL_INTERVAL}s until recovered"
+            gh_failing=1
+        fi
         sleep "$POLL_INTERVAL"
         continue
     }
+    if [[ "${gh_failing:-0}" == "1" ]]; then
+        log "gh pr view recovered"
+        gh_failing=0
+    fi
 
     curr_state=$(watcher_extract_state "$pr_json")
     events=$(watcher_diff_events "$prev_state" "$curr_state")
 
     terminal=0
+    last_action=""
     if [[ -n "$events" ]]; then
         while IFS= read -r event; do
             [[ -z "$event" ]] && continue
@@ -167,17 +176,22 @@ while true; do
             kind=$(_action_get "$action" "kind")
             case "$kind" in
                 log)
-                    log "event: $event"
+                    if [[ "$event" != "first_poll" ]]; then
+                        log "event: $event"
+                    fi
+                    last_action="event: $event"
                     ;;
                 hook)
                     local_hook=$(_action_get "$action" "hook_name")
                     log "event: $event → hook $local_hook"
                     _run_hook "$local_hook" --task-id "$TASK_ID" --pr-url "$PR_URL" --pr-number "$PR_NUMBER"
+                    last_action="event: $event → hook $local_hook"
                     ;;
                 llm)
                     skill=$(_action_get "$action" "skill")
                     log "event: $event → dispatching $skill"
                     dispatch_remediation "$skill"
+                    last_action="event: $event → dispatched $skill"
                     ;;
                 terminal)
                     trans=$(_action_get "$action" "transition")
@@ -186,10 +200,12 @@ while true; do
                         mark_done)
                             log "event: $event → state_mark_done"
                             state_mark_done "$QUEUE_DIR" "$TASK_ID" > /dev/null
+                            last_action="event: $event → state_mark_done"
                             ;;
                         mark_blocked)
                             log "event: $event → state_mark_blocked"
                             state_mark_blocked "$QUEUE_DIR" "$TASK_ID" "${reason:-PR closed without merging}" > /dev/null
+                            last_action="event: $event → state_mark_blocked"
                             ;;
                     esac
                     terminal=1
@@ -198,8 +214,18 @@ while true; do
         done <<< "$events"
     fi
 
-    # Persist current state for the next iteration.
-    echo "$curr_state" > "$STATE_FILE"
+    # Persist current state for the next iteration. Append last_action
+    # (if any event fired this poll) so the renderer can show the most
+    # recent activity. Cache raw gh JSON for the renderer's per-check
+    # rows and reviewer details.
+    {
+        echo "$curr_state"
+        if [[ -n "$last_action" ]]; then
+            echo "last_action=$last_action"
+            echo "last_action_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        fi
+    } > "$STATE_FILE"
+    echo "$pr_json" > "${STATE_FILE%.state}.json"
 
     if (( terminal == 1 )); then
         log "terminal event reached; watcher exiting"
