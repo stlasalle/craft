@@ -75,12 +75,15 @@ printf "%s\n" "${BOLD}═══════════════════�
 echo ""
 
 # CI Checks
+# Display name precedence: context (status checks like Buildkite) →
+# workflowName (GitHub Actions) → name (everything else) → "(unnamed)".
+# `gh pr view --json statusCheckRollup` populates a different field
+# depending on the check provider, so coalesce them.
 echo "${BOLD}CI Checks${NC}"
 jq -r '
     .statusCheckRollup // []
-    | map({name, conclusion, status})
     | .[]
-    | "\(.name)\t\(.conclusion // "")\t\(.status // "")"
+    | "\(.context // .workflowName // .name // "(unnamed)")\t\(.conclusion // "")\t\(.status // "")"
 ' "$JSON_FILE" | while IFS=$'\t' read -r name concl status; do
     icon=""
     case "$concl" in

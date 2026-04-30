@@ -34,6 +34,16 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    local label="$1" needle="$2" haystack="$3"
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if ! echo "$haystack" | grep -q -- "$needle"; then
+        pass "$label"
+    else
+        fail "$label" "expected NOT to contain '$needle' in: $haystack"
+    fi
+}
+
 echo "watcher-events scaffolding"
 assert_eq "watcher-events.sh sourced" "1" "1"
 
@@ -79,11 +89,61 @@ assert_contains "ci_failed event emitted" "ci_failed" "$events"
 # Transition: pending → failed also implies draft→ready (fixture difference)
 assert_contains "draft_to_ready event emitted" "draft_to_ready" "$events"
 
-# Transition: pending → failed also adds a review
-assert_contains "new_review_received event emitted" "new_review_received" "$events"
+# Transition: pending → failed also adds an APPROVED review, which is now
+# suppressed (pure approvals don't need an LLM-dispatched skill).
+assert_not_contains "approval-only review suppressed" "new_review_received" "$events"
 
 # Transition: pending → failed also adds comments
 assert_contains "new_comment_received event emitted" "new_comment_received" "$events"
+
+# Synthesize state blobs to control approved/review counts directly.
+state_no_reviews="state=OPEN
+is_draft=false
+mergeable=MERGEABLE
+checks_conclusion=PENDING
+review_count=0
+comment_count=0
+approved_count=0
+changes_requested_count=0"
+
+state_one_approval="state=OPEN
+is_draft=false
+mergeable=MERGEABLE
+checks_conclusion=PENDING
+review_count=1
+comment_count=0
+approved_count=1
+changes_requested_count=0"
+
+state_one_changes_requested="state=OPEN
+is_draft=false
+mergeable=MERGEABLE
+checks_conclusion=PENDING
+review_count=1
+comment_count=0
+approved_count=0
+changes_requested_count=1"
+
+state_one_approval_one_changes="state=OPEN
+is_draft=false
+mergeable=MERGEABLE
+checks_conclusion=PENDING
+review_count=2
+comment_count=0
+approved_count=1
+changes_requested_count=1"
+
+# Pure approval — should NOT emit new_review_received
+events=$(watcher_diff_events "$state_no_reviews" "$state_one_approval")
+assert_not_contains "pure approval suppressed" "new_review_received" "$events"
+
+# Changes-requested review — SHOULD emit new_review_received
+events=$(watcher_diff_events "$state_no_reviews" "$state_one_changes_requested")
+assert_contains "changes_requested still emits" "new_review_received" "$events"
+
+# Mixed batch (one approval + one changes-requested) — SHOULD emit
+events=$(watcher_diff_events "$state_no_reviews" "$state_one_approval_one_changes")
+assert_contains "mixed batch still emits" "new_review_received" "$events"
 
 # Transition: failed → merged
 events=$(watcher_diff_events "$state_failed" "$state_merged")
@@ -114,9 +174,17 @@ action=$(watcher_dispatch_action "draft_to_ready")
 assert_contains "draft_to_ready: kind=hook" "kind=hook" "$action"
 assert_contains "draft_to_ready: hook_name=on_ready" "hook_name=on_ready" "$action"
 
-# Deferred events yield kind=log
+# new_comment_received → dispatch /address-review-comment
+action=$(watcher_dispatch_action "new_comment_received")
+assert_contains "comment: kind=llm" "kind=llm" "$action"
+assert_contains "comment: skill=/address-review-comment" "skill=/address-review-comment" "$action"
+
+# new_review_received → also dispatches /address-review-comment.
+# (Pure-approval reviews are filtered upstream in watcher_diff_events,
+# so by the time this event fires there's actionable content.)
 action=$(watcher_dispatch_action "new_review_received")
-assert_contains "new_review_received: kind=log" "kind=log" "$action"
+assert_contains "review: kind=llm" "kind=llm" "$action"
+assert_contains "review: skill=/address-review-comment" "skill=/address-review-comment" "$action"
 
 action=$(watcher_dispatch_action "mergeable_conflicting")
 assert_contains "mergeable_conflicting: kind=log" "kind=log" "$action"

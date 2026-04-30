@@ -6,7 +6,17 @@
 #   local   — file-based task queue under queue/ (default)
 #   linear  — Linear issues via GraphQL (implemented in a later plan)
 
-STATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve the directory holding state-*.sh.
+# Prefer CRAFT_ROOT (set by the orchestrator and passed into worker
+# prompts) so that sourcing this file from agents running under zsh —
+# where BASH_SOURCE may be empty and dirname '' resolves to cwd —
+# still finds the correct backend file. Fall back to BASH_SOURCE for
+# direct bash callers.
+if [[ -n "${CRAFT_ROOT:-}" ]] && [[ -f "${CRAFT_ROOT}/bin/lib/state-local.sh" ]]; then
+    STATE_DIR="${CRAFT_ROOT}/bin/lib"
+else
+    STATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+fi
 
 STATE_BACKEND="${STATE_BACKEND:-local}"
 

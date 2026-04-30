@@ -71,6 +71,17 @@ fi
 STATE_FILE="$PROJECT_DIR/.state/watchers/${PR_NUMBER}.state"
 mkdir -p "$(dirname "$STATE_FILE")"
 
+# Project name (used to construct the multiplexer session name when
+# spawning remediation panes).
+PROJECT_NAME="$(basename "$PROJECT_DIR")"
+
+# Load project-level config (sets DEFAULT_AGENT, MULTIPLEXER, etc.) and
+# source the multiplexer provider so spawn_task_pane_detached / kill_task_pane
+# / pane_is_running are available for remediation dispatch below.
+load_provider_config "$PROJECT_DIR"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/mux.sh"
+
 log() {
     echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] watcher pr-${PR_NUMBER}: $*"
 }
@@ -105,11 +116,15 @@ _watcher_find_worktree() {
     return 1
 }
 
-# Run a remediation agent inline (synchronously) in the watcher's own
-# pane. Using bash -c here (vs spawning a new pane) enforces the serial
-# per-PR guarantee naturally and keeps the remediation trail interleaved
-# with the watcher log. Polling pauses while the remediation runs; this
-# is acceptable for the scope and avoids pane proliferation.
+# Spawn a remediation agent in a new (unfocused) multiplexer pane and
+# wait for it to complete. Three independent completion signals: pane
+# exited, the PR's head SHA changed (agent pushed a fix), or a hard
+# timeout. Force-kill the pane at the end regardless to handle Claude
+# Code's "/exit" not actually terminating its process.
+#
+# Serial per PR: this function blocks until the remediation finishes,
+# so the watcher's main poll loop can't dispatch a second remediation
+# on the same PR while one is in flight.
 dispatch_remediation() {
     local skill="$1"
     local skill_name="${skill#/}"
@@ -131,14 +146,50 @@ dispatch_remediation() {
         sed "s|\\\$ARGUMENTS|${PR_URL}|g" "$skill_file"
     } > "$prompt_file"
 
-    load_provider_config "$PROJECT_DIR"
     local agent="${DEFAULT_AGENT:-claude}"
-    local cmd
-    cmd=$(provider_task_cmd "$agent" "$prompt_file" "$worktree_path")
+    local session="${TMUX_SESSION}-${PROJECT_NAME}"
+    local remediation_id="rem-${PR_NUMBER}-${skill_name//\//-}"
 
-    log "dispatching remediation: $skill (pr=$PR_NUMBER, task=$TASK_ID)"
-    # Run synchronously so the polling loop stays serial per PR.
-    bash -c "$cmd"
+    # Capture initial head SHA so a successful push counts as completion.
+    local initial_sha
+    initial_sha=$(gh pr view "$PR_URL" --json commits -q '.commits[-1].oid' 2>/dev/null || true)
+
+    log "dispatching $skill in pane $remediation_id"
+    spawn_task_pane_detached "$session" "$remediation_id" "$prompt_file" "$worktree_path" "$agent" > /dev/null 2>&1 || {
+        log "spawn_task_pane_detached failed; falling back to inline execution"
+        local cmd
+        cmd=$(provider_task_cmd "$agent" "$prompt_file" "$worktree_path")
+        bash -c "$cmd"
+        rm -f "$prompt_file"
+        return 0
+    }
+
+    # Wait for ANY of: pane exit, new commit pushed, timeout. 5 min cap.
+    local timeout_s=300
+    local start_t
+    start_t=$(date +%s)
+    while true; do
+        if ! pane_is_running "$session" "$remediation_id"; then
+            log "remediation pane exited cleanly"
+            break
+        fi
+        local current_sha
+        current_sha=$(gh pr view "$PR_URL" --json commits -q '.commits[-1].oid' 2>/dev/null || true)
+        if [[ -n "$current_sha" && -n "$initial_sha" && "$current_sha" != "$initial_sha" ]]; then
+            log "remediation pushed new commit ($current_sha); tearing down pane"
+            break
+        fi
+        local now_t
+        now_t=$(date +%s)
+        if (( now_t - start_t > timeout_s )); then
+            log "remediation $skill exceeded ${timeout_s}s — force-killing pane"
+            break
+        fi
+        sleep 5
+    done
+
+    # Force-kill regardless. Idempotent if the pane already exited.
+    kill_task_pane "$session" "$remediation_id" 2>/dev/null || true
     rm -f "$prompt_file"
 }
 

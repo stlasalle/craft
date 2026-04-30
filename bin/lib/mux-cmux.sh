@@ -7,6 +7,11 @@
 # Workspace name prefix
 CMUX_PREFIX="craft"
 
+# Compat alias used by orchestrator.sh — both providers expose
+# the same session-name prefix variable so check_active_tasks and
+# reap_finished_watchers work identically regardless of multiplexer.
+TMUX_SESSION="${CMUX_PREFIX}"
+
 # Track surface IDs for task panes
 declare -A CMUX_SURFACES=()  # task_id -> surface_id
 
@@ -72,6 +77,39 @@ spawn_task_pane() {
 
     # Track the surface
     CMUX_SURFACES["$task_id"]="${surface_id:-$task_id}"
+
+    echo "${surface_id:-$task_id}"
+}
+
+# Like spawn_task_pane but creates the surface without focusing it.
+# cmux's new-split takes focus by default; we focus back to the previous
+# surface after creating the new one. Used for remediation agents
+# dispatched by watchers.
+# Returns the surface ID.
+spawn_task_pane_detached() {
+    local session="$1" task_id="$2" prompt_file="$3" work_dir="$4"
+    local agent="${5:-claude}"
+
+    local cmd
+    cmd=$(provider_task_cmd "$agent" "$prompt_file" "$work_dir")
+
+    # Capture the currently-focused surface so we can return to it.
+    local prev_surface
+    prev_surface=$(cmux focused-surface 2>/dev/null || true)
+
+    cmux select-workspace "$session" 2>/dev/null || true
+    local surface_id
+    surface_id=$(cmux new-split down 2>/dev/null || true)
+    cmux set-status "task" "$task_id" 2>/dev/null || true
+    cmux send "$cmd" 2>/dev/null || true
+    cmux send-key enter 2>/dev/null || true
+
+    CMUX_SURFACES["$task_id"]="${surface_id:-$task_id}"
+
+    # Restore focus to the previously-focused surface.
+    if [[ -n "$prev_surface" ]]; then
+        cmux focus-surface "$prev_surface" 2>/dev/null || true
+    fi
 
     echo "${surface_id:-$task_id}"
 }

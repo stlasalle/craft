@@ -121,9 +121,23 @@ watcher_diff_events() {
         echo "mergeable_conflicting"
     fi
 
-    # Review count grew.
+    # Review count grew. Suppress the event when the only new reviews are
+    # pure approvals — those don't need an LLM dispatch. We compare the
+    # review-count delta to the approved-count delta: if the review delta
+    # exceeds the approved delta, at least one non-approval review landed
+    # (CHANGES_REQUESTED or COMMENTED), and we emit the event.
     if [[ -n "$c_review" && -n "$p_review" ]] && (( c_review > p_review )); then
-        echo "new_review_received"
+        local p_approved c_approved
+        p_approved=$(_watcher_state_get "$prev" "approved_count")
+        c_approved=$(_watcher_state_get "$curr" "approved_count")
+        # Default missing counts to 0 for safe arithmetic.
+        : "${p_approved:=0}"
+        : "${c_approved:=0}"
+        local review_delta=$(( c_review - p_review ))
+        local approved_delta=$(( c_approved - p_approved ))
+        if (( review_delta > approved_delta )); then
+            echo "new_review_received"
+        fi
     fi
 
     # Comment count grew.
@@ -142,6 +156,13 @@ watcher_dispatch_action() {
             echo "kind=llm"
             echo "skill=/fix-ci-failure"
             ;;
+        new_comment_received|new_review_received)
+            # Treat reviews and ad-hoc comments uniformly. Pure-approval
+            # reviews are filtered upstream in watcher_diff_events so the
+            # skill only runs when there's actionable feedback.
+            echo "kind=llm"
+            echo "skill=/address-review-comment"
+            ;;
         merged)
             echo "kind=terminal"
             echo "transition=mark_done"
@@ -155,7 +176,7 @@ watcher_dispatch_action() {
             echo "kind=hook"
             echo "hook_name=on_ready"
             ;;
-        first_poll|ci_passed|mergeable_conflicting|new_review_received|new_comment_received)
+        first_poll|ci_passed|mergeable_conflicting)
             echo "kind=log"
             ;;
         *)

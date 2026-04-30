@@ -4,7 +4,16 @@
 # Wraps bin/lib/queue.sh (low-level file accessors) and exposes
 # high-level state operations used by the orchestrator and skills.
 
-STATE_LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve the directory holding queue.sh. Prefer the value already set
+# by state.sh (STATE_DIR) to be robust under zsh callers where BASH_SOURCE
+# is empty. Fall back to BASH_SOURCE for direct callers.
+if [[ -n "${STATE_DIR:-}" ]] && [[ -f "${STATE_DIR}/queue.sh" ]]; then
+    STATE_LOCAL_DIR="${STATE_DIR}"
+elif [[ -n "${CRAFT_ROOT:-}" ]] && [[ -f "${CRAFT_ROOT}/bin/lib/queue.sh" ]]; then
+    STATE_LOCAL_DIR="${CRAFT_ROOT}/bin/lib"
+else
+    STATE_LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+fi
 
 # shellcheck source=/dev/null
 source "$STATE_LOCAL_DIR/queue.sh"
