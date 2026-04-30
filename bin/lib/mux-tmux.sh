@@ -20,17 +20,14 @@ ensure_session() {
 
     # Ensure architect window exists — an agent session pre-loaded with project context
     if ! tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null | grep -q '^architect$'; then
-        tmux new-window -t "${session}:" -n "architect"
         if [[ -n "${project_dir:-}" ]]; then
             local skill_file="${project_dir}/.claude/commands/init-architect.md"
             local architect_agent="${ARCHITECT_AGENT:-claude}"
             local cmd
             cmd=$(provider_architect_cmd "$architect_agent" "$skill_file" "$project_dir")
-            # Use send-keys so the agent runs inside an interactive shell.
-            # Passing the command to new-window runs it as the window's initial
-            # process, which breaks TUI input (arrow keys, etc.) for agents
-            # like codex that use interactive terminal frameworks.
-            tmux send-keys -t "${session}:architect" "$cmd" Enter
+            tmux new-window -t "${session}:" -n "architect" "$cmd"
+        else
+            tmux new-window -t "${session}:" -n "architect"
         fi
         tmux select-window -t "${session}:orchestrator"
     fi
@@ -47,12 +44,8 @@ spawn_task_pane() {
     local cmd
     cmd=$(provider_task_cmd "$agent" "$prompt_file" "$work_dir")
 
-    # Create window with a shell first, then send the command via send-keys.
-    # This ensures the agent runs inside an interactive shell pty, so TUI
-    # input (arrow keys, etc.) works if the operator jumps into the pane.
     local window_id
-    window_id=$(tmux new-window -t "${session}:" -n "$task_id" -P -F '#{window_id}')
-    tmux send-keys -t "${session}:${task_id}" "$cmd" Enter
+    window_id=$(tmux new-window -t "${session}:" -n "$task_id" -P -F '#{window_id}' "$cmd")
 
     echo "$window_id"
 }
@@ -77,6 +70,18 @@ pane_is_running() {
 kill_task_pane() {
     local session="$1" task_id="$2"
     tmux kill-window -t "${session}:${task_id}" 2>/dev/null || true
+}
+
+# Create a new window for a watcher and run the command in it
+# Returns the window ID
+spawn_watcher_pane() {
+    local session="$1" pr_number="$2" cmd="$3"
+    local window_name="watch-pr-${pr_number}"
+
+    local window_id
+    window_id=$(tmux new-window -t "${session}:" -n "$window_name" -P -F '#{window_id}' "$cmd")
+
+    echo "$window_id"
 }
 
 # Update the orchestrator pane with status info

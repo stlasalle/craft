@@ -1,0 +1,19 @@
+{
+  "state": "OPEN",
+  "isDraft": false,
+  "mergeable": "MERGEABLE",
+  "title": "feat: add widget",
+  "number": 42,
+  "mergedAt": null,
+  "statusCheckRollup": [
+    {"name": "lint", "conclusion": "SUCCESS", "status": "COMPLETED"},
+    {"name": "unit-tests", "conclusion": "FAILURE", "status": "COMPLETED"}
+  ],
+  "reviews": [
+    {"state": "APPROVED", "author": {"login": "alice"}}
+  ],
+  "comments": [
+    {"id": "c1"},
+    {"id": "c2"}
+  ]
+}

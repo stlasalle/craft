@@ -23,3 +23,4 @@ test:
 	@echo "Running tests..."
 	@bash $(CURDIR)/test/test-queue.sh
 	@bash $(CURDIR)/test/test-state.sh
+	@bash $(CURDIR)/test/test-watcher-events.sh

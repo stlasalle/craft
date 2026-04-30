@@ -110,6 +110,30 @@ kill_task_pane() {
     fi
 }
 
+# Create a new surface for a watcher and run the command in it
+# Returns the surface ID
+spawn_watcher_pane() {
+    local session="$1" pr_number="$2" cmd="$3"
+    local window_name="watch-pr-${pr_number}"
+
+    # Select the workspace and create a new split
+    cmux select-workspace "$session" 2>/dev/null || true
+    local surface_id
+    surface_id=$(cmux new-split down 2>/dev/null || true)
+
+    # Set surface title/status for identification
+    cmux set-status "watcher" "$window_name" 2>/dev/null || true
+
+    # Send the command
+    cmux send "$cmd" 2>/dev/null || true
+    cmux send-key enter 2>/dev/null || true
+
+    # Track the surface (mirror spawn_task_pane pattern)
+    CMUX_SURFACES["$window_name"]="${surface_id:-$window_name}"
+
+    echo "${surface_id:-$window_name}"
+}
+
 # Update the orchestrator display (no-op for cmux — the dashboard renders in-terminal)
 update_orchestrator_display() {
     local session="$1" status_text="$2"

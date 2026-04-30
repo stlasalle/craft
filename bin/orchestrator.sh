@@ -11,6 +11,7 @@ set -uo pipefail
 # Run this in a tmux pane — it becomes the orchestrator dashboard.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CRAFT_ROOT="${CRAFT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/notify.sh"
 source "$SCRIPT_DIR/lib/providers.sh"
@@ -29,7 +30,6 @@ log() {
 PROJECT_DIR=""
 MAX_PARALLEL=10
 POLL_INTERVAL=15  # seconds between queue checks
-PR_POLL_INTERVAL=120  # seconds between PR merge checks
 
 # --- Parse arguments ---
 while [[ $# -gt 0 ]]; do
@@ -81,10 +81,10 @@ load_provider_config "$PROJECT_DIR"
 source "$SCRIPT_DIR/lib/mux.sh"
 
 # --- State tracking ---
-declare -A ACTIVE_TASKS=()  # task_id -> tmux window name
-declare -A TASK_AGENTS=()   # task_id -> agent provider (claude, codex, etc.)
-declare -A TASK_PR_URLS=()  # task_id -> PR URL (for merge monitoring)
-declare -A TASK_START=()    # task_id -> epoch timestamp when task started
+declare -A ACTIVE_TASKS=()     # task_id -> tmux window name
+declare -A TASK_AGENTS=()      # task_id -> agent provider (claude, codex, etc.)
+declare -A TASK_START=()       # task_id -> epoch timestamp when task started
+declare -A ACTIVE_WATCHERS=()  # pr_number -> tmux window name
 
 # --- Display ---
 RED='\033[0;31m'
@@ -157,6 +157,15 @@ render_dashboard() {
         echo ""
     fi
 
+    # Active watchers
+    if [[ ${#ACTIVE_WATCHERS[@]} -gt 0 ]]; then
+        echo -e "${BOLD}  Active Watchers:${NC}"
+        for pr_number in "${!ACTIVE_WATCHERS[@]}"; do
+            echo -e "    ${YELLOW}◉${NC} PR #$pr_number  [tmux: ${ACTIVE_WATCHERS[$pr_number]}]"
+        done
+        echo ""
+    fi
+
     # Approved tasks queued
     if [[ "$n_approved" -gt 0 ]]; then
         echo -e "${BOLD}  Queue (approved):${NC}"
@@ -202,9 +211,13 @@ run_task() {
 
     log "Starting task: $tid"
 
-    # Move to in-progress and notify plugins
+    # Claim the task via the state interface (moves approved -> in-progress,
+    # sets the started timestamp).
     local new_file
-    new_file=$(move_task "$task_file" "$QUEUE_DIR/in-progress" "in-progress")
+    new_file=$(state_claim_task "$QUEUE_DIR" "$tid") || {
+        log "Failed to claim task $tid"
+        return 1
+    }
     notify_started "$tid"
 
     # Build the prompt file
@@ -213,7 +226,17 @@ run_task() {
     local skill_file="$PROJECT_DIR/.claude/commands/work-task.md"
     local prompt_file="/tmp/craft-prompt-${tid}.txt"
     {
-        echo "NOTE: The orchestrator has already moved this task to queue/in-progress/${filename} and set its status to in-progress. Skip Step 2 (Move Task to In-Progress) — start from Step 1 (read context) then go straight to Step 3 (do the work)."
+        echo "NOTE: The orchestrator has already claimed this task (moved queue/approved/${filename} to queue/in-progress/${filename} and set status=in-progress with a started timestamp). You do NOT need to move the task file yourself."
+        echo ""
+        echo "Working context:"
+        echo "  CRAFT_ROOT=${CRAFT_ROOT}"
+        echo "  PROJECT_DIR=${PROJECT_DIR}"
+        echo "  QUEUE_DIR=${QUEUE_DIR}"
+        echo ""
+        echo "To call state operations (e.g., state_mark_waiting, state_append_note), first source the state library:"
+        echo "  source \"\${CRAFT_ROOT}/bin/lib/state.sh\""
+        echo "Then invoke operations with QUEUE_DIR as the first argument, e.g.:"
+        echo "  state_mark_waiting \"\${QUEUE_DIR}\" \"${tid}\" \"<pr-url>\""
         echo ""
         sed "s/\\\$ARGUMENTS/$filename/g" "$skill_file"
     } > "$prompt_file"
@@ -247,6 +270,44 @@ find_task_in() {
         fi
     done
     return 1
+}
+
+# Spawn a watcher for a task that has moved to waiting/.
+# Reads the pr: field from the task's frontmatter. Returns 0 on success,
+# 1 if no pr field or the PR number can't be derived.
+spawn_watcher_for_task() {
+    local task_file="$1"
+    local tid
+    tid=$(task_id "$task_file")
+
+    local pr_url
+    pr_url=$(task_field "$task_file" "pr")
+    if [[ -z "$pr_url" ]]; then
+        log "Task $tid is in waiting/ but has no pr: field — not spawning watcher"
+        return 1
+    fi
+
+    local pr_number="${pr_url##*/}"
+    if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+        log "Task $tid has unparseable pr url '$pr_url' — not spawning watcher"
+        return 1
+    fi
+
+    # Already watching this PR?
+    if [[ -n "${ACTIVE_WATCHERS[$pr_number]:-}" ]]; then
+        return 0
+    fi
+
+    local session
+    session=$(ensure_session "$PROJECT_NAME" "$PROJECT_DIR")
+
+    local cmd="'$SCRIPT_DIR/watcher.sh' --pr '$pr_url' --task '$tid' --queue-dir '$QUEUE_DIR' --project-dir '$PROJECT_DIR'"
+
+    local window
+    window=$(spawn_watcher_pane "$session" "$pr_number" "$cmd")
+
+    ACTIVE_WATCHERS["$pr_number"]="$window"
+    log "Spawned watcher for PR $pr_number (task $tid)"
 }
 
 # Get the timeout for a task (per-task override or global default, in seconds)
@@ -395,6 +456,51 @@ check_waiting_tasks() {
     done
 }
 
+# Ensure each task in waiting/ with a pr URL has an active watcher.
+ensure_watchers_for_waiting() {
+    for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
+        local pr_url pr_number
+        pr_url=$(task_field "$task_file" "pr")
+        [[ -z "$pr_url" ]] && continue
+        pr_number="${pr_url##*/}"
+        [[ -z "${ACTIVE_WATCHERS[$pr_number]:-}" ]] || continue
+        spawn_watcher_for_task "$task_file" || true
+    done
+}
+
+# Clean up watcher entries whose pane has died OR whose PR's task is no
+# longer in waiting/. Either case means ACTIVE_WATCHERS has a stale entry
+# that would otherwise prevent ensure_watchers_for_waiting from respawning.
+reap_finished_watchers() {
+    local session
+    session="${TMUX_SESSION}-${PROJECT_NAME}"
+
+    for pr_number in "${!ACTIVE_WATCHERS[@]}"; do
+        # Check 1: is the watcher pane still alive?
+        if ! pane_is_running "$session" "watch-pr-${pr_number}"; then
+            log "Watcher pane for PR $pr_number has exited — unregistering"
+            unset ACTIVE_WATCHERS["$pr_number"]
+            continue
+        fi
+
+        # Check 2: is the task still in waiting/? If not, the watcher did
+        # its job and will exit shortly on its own (or already has).
+        local found=0
+        for task_file in $(list_tasks "$QUEUE_DIR/waiting"); do
+            local pr_url
+            pr_url=$(task_field "$task_file" "pr")
+            if [[ "${pr_url##*/}" == "$pr_number" ]]; then
+                found=1
+                break
+            fi
+        done
+        if (( found == 0 )); then
+            log "Watcher for PR $pr_number: task no longer in waiting/ — unregistering"
+            unset ACTIVE_WATCHERS["$pr_number"]
+        fi
+    done
+}
+
 # --- Main Loop ---
 
 # Handle nested tmux — if already inside tmux, unset TMUX to allow nesting
@@ -440,6 +546,10 @@ while true; do
 
     # Check for new waiting tasks
     check_waiting_tasks
+
+    # Spawn watchers for any waiting task without one; reap finished watchers.
+    ensure_watchers_for_waiting
+    reap_finished_watchers
 
     # Check milestone completion every 4th poll
     if (( poll_count % 4 == 0 )); then
