@@ -349,7 +349,11 @@ Verifies that all required tools are installed and reports their versions.
 
 Required:  bash, git, tmux or cmux, gh, jq
 Agents:    claude, codex (at least one needed)
-Optional:  linear-cli (for the linear-sync plugin), cmux (alternative to tmux)
+Optional:  linear-cli (for the legacy linear-sync plugin), cmux
+
+State backends:
+  local   file-based queue/ directory (default, no extra deps)
+  linear  Linear-backed state (requires LINEAR_API_KEY, implemented in a later phase)
 
 Also checks that craft is on your PATH and shows environment info.
 HELP
@@ -425,6 +429,7 @@ HELP
     printf "  %-12s %s\n" "CRAFT_ROOT" "$CRAFT_ROOT"
     printf "  %-12s %s\n" "shell" "$SHELL"
     printf "  %-12s %s\n" "platform" "$(uname -s) $(uname -m)"
+    printf "  %-12s %s (default; set STATE_BACKEND in craft.conf per-project)\n" "state" "local"
 
     # Check if craft is on PATH
     local craft_path
@@ -474,7 +479,7 @@ HELP
     local queue_dir="$project_dir/queue"
 
     # Source queue helpers
-    source "$CRAFT_ROOT/bin/lib/queue.sh"
+    source "$CRAFT_ROOT/bin/lib/state.sh"
 
     local n_pending n_approved n_in_progress n_waiting n_done n_blocked
     n_pending=$(count_tasks "$queue_dir/pending" 2>/dev/null || echo 0)
@@ -572,7 +577,7 @@ HELP
     fi
 
     local queue_dir="$project_dir/queue"
-    source "$CRAFT_ROOT/bin/lib/queue.sh"
+    source "$CRAFT_ROOT/bin/lib/state.sh"
 
     # Queue snapshot
     local n_pending n_approved n_in_progress n_waiting n_done n_blocked
@@ -595,42 +600,45 @@ HELP
     local sum_to_done=0 n_to_done=0
     local sum_total=0 n_total=0
 
-    for f in "${task_files[@]}"; do
-        total=$((total + 1))
+    # Iterate only if task_files is non-empty (work around bash set -u issue with empty arrays)
+    if [[ ${#task_files[@]} -gt 0 ]]; then
+        for f in "${task_files[@]}"; do
+            total=$((total + 1))
 
-        local os
-        os=$(task_field "$f" "one_shot")
-        [[ "$os" == "true" ]] && one_shot_count=$((one_shot_count + 1))
+            local os
+            os=$(task_field "$f" "one_shot")
+            [[ "$os" == "true" ]] && one_shot_count=$((one_shot_count + 1))
 
-        local t_created t_started t_waiting t_done
-        t_created=$(task_field "$f" "created")
-        t_started=$(task_field "$f" "started")
-        t_waiting=$(task_field "$f" "waiting")
-        t_done=$(task_field "$f" "done")
+            local t_created t_started t_waiting t_done
+            t_created=$(task_field "$f" "created")
+            t_started=$(task_field "$f" "started")
+            t_waiting=$(task_field "$f" "waiting")
+            t_done=$(task_field "$f" "done")
 
-        local e_created e_started e_waiting e_done
-        e_created=$(_to_epoch "$t_created" 2>/dev/null) || e_created=""
-        e_started=$(_to_epoch "$t_started" 2>/dev/null) || e_started=""
-        e_waiting=$(_to_epoch "$t_waiting" 2>/dev/null) || e_waiting=""
-        e_done=$(_to_epoch "$t_done" 2>/dev/null) || e_done=""
+            local e_created e_started e_waiting e_done
+            e_created=$(_to_epoch "$t_created" 2>/dev/null) || e_created=""
+            e_started=$(_to_epoch "$t_started" 2>/dev/null) || e_started=""
+            e_waiting=$(_to_epoch "$t_waiting" 2>/dev/null) || e_waiting=""
+            e_done=$(_to_epoch "$t_done" 2>/dev/null) || e_done=""
 
-        if [[ -n "$e_created" ]] && [[ -n "$e_started" ]]; then
-            sum_to_started=$(( sum_to_started + e_started - e_created ))
-            n_to_started=$(( n_to_started + 1 ))
-        fi
-        if [[ -n "$e_started" ]] && [[ -n "$e_waiting" ]]; then
-            sum_to_waiting=$(( sum_to_waiting + e_waiting - e_started ))
-            n_to_waiting=$(( n_to_waiting + 1 ))
-        fi
-        if [[ -n "$e_waiting" ]] && [[ -n "$e_done" ]]; then
-            sum_to_done=$(( sum_to_done + e_done - e_waiting ))
-            n_to_done=$(( n_to_done + 1 ))
-        fi
-        if [[ -n "$e_created" ]] && [[ -n "$e_done" ]]; then
-            sum_total=$(( sum_total + e_done - e_created ))
-            n_total=$(( n_total + 1 ))
-        fi
-    done
+            if [[ -n "$e_created" ]] && [[ -n "$e_started" ]]; then
+                sum_to_started=$(( sum_to_started + e_started - e_created ))
+                n_to_started=$(( n_to_started + 1 ))
+            fi
+            if [[ -n "$e_started" ]] && [[ -n "$e_waiting" ]]; then
+                sum_to_waiting=$(( sum_to_waiting + e_waiting - e_started ))
+                n_to_waiting=$(( n_to_waiting + 1 ))
+            fi
+            if [[ -n "$e_waiting" ]] && [[ -n "$e_done" ]]; then
+                sum_to_done=$(( sum_to_done + e_done - e_waiting ))
+                n_to_done=$(( n_to_done + 1 ))
+            fi
+            if [[ -n "$e_created" ]] && [[ -n "$e_done" ]]; then
+                sum_total=$(( sum_total + e_done - e_created ))
+                n_total=$(( n_total + 1 ))
+            fi
+        done
+    fi
 
     # Output
     echo "craft metrics: $project_name"
@@ -741,7 +749,7 @@ HELP
             found=true
             name=$(basename "$d")
             # Source queue helpers for counts
-            source "$CRAFT_ROOT/bin/lib/queue.sh" 2>/dev/null
+            source "$CRAFT_ROOT/bin/lib/state.sh" 2>/dev/null
             queue_dir="$d/queue"
             n_in_progress=$(count_tasks "$queue_dir/in-progress" 2>/dev/null || echo 0)
             n_waiting=$(count_tasks "$queue_dir/waiting" 2>/dev/null || echo 0)

@@ -11,7 +11,7 @@ set -uo pipefail
 # Run this in a tmux pane — it becomes the orchestrator dashboard.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/queue.sh"
+source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/notify.sh"
 source "$SCRIPT_DIR/lib/providers.sh"
 # Multiplexer loaded after config (needs MULTIPLEXER variable)
@@ -288,8 +288,7 @@ check_active_tasks() {
                 local task_file
                 task_file=$(find_task_in "$QUEUE_DIR/in-progress" "$tid" 2>/dev/null || true)
                 if [[ -n "$task_file" ]]; then
-                    append_work_log "$task_file" "Timed out by orchestrator after ${elapsed}s (limit: ${timeout}s)"
-                    move_task "$task_file" "$QUEUE_DIR/blocked" "blocked" > /dev/null
+                    state_mark_blocked "$QUEUE_DIR" "$tid" "Timed out after ${elapsed}s (limit: ${timeout}s)" > /dev/null
                 fi
 
                 kill_task_pane "$session" "$tid"
