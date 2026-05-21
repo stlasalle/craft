@@ -1,0 +1,8 @@
+state=OPEN
+is_draft=true
+mergeable=MERGEABLE
+checks_conclusion=PENDING
+review_count=0
+comment_count=0
+approved_count=0
+changes_requested_count=0

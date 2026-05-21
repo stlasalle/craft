@@ -1,0 +1,10 @@
+state=MERGED
+is_draft=false
+mergeable=UNKNOWN
+checks_conclusion=SUCCESS
+review_count=1
+comment_count=0
+approved_count=1
+changes_requested_count=0
+last_action=event: merged → state_mark_done
+last_action_at=2026-04-29T15:41:32Z

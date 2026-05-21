@@ -7,6 +7,11 @@
 # Workspace name prefix
 CMUX_PREFIX="craft"
 
+# Compat alias used by orchestrator.sh — both providers expose
+# the same session-name prefix variable so check_active_tasks and
+# reap_finished_watchers work identically regardless of multiplexer.
+TMUX_SESSION="${CMUX_PREFIX}"
+
 # Track surface IDs for task panes
 declare -A CMUX_SURFACES=()  # task_id -> surface_id
 
@@ -76,6 +81,39 @@ spawn_task_pane() {
     echo "${surface_id:-$task_id}"
 }
 
+# Like spawn_task_pane but creates the surface without focusing it.
+# cmux's new-split takes focus by default; we focus back to the previous
+# surface after creating the new one. Used for remediation agents
+# dispatched by watchers.
+# Returns the surface ID.
+spawn_task_pane_detached() {
+    local session="$1" task_id="$2" prompt_file="$3" work_dir="$4"
+    local agent="${5:-claude}"
+
+    local cmd
+    cmd=$(provider_task_cmd "$agent" "$prompt_file" "$work_dir")
+
+    # Capture the currently-focused surface so we can return to it.
+    local prev_surface
+    prev_surface=$(cmux focused-surface 2>/dev/null || true)
+
+    cmux select-workspace "$session" 2>/dev/null || true
+    local surface_id
+    surface_id=$(cmux new-split down 2>/dev/null || true)
+    cmux set-status "task" "$task_id" 2>/dev/null || true
+    cmux send "$cmd" 2>/dev/null || true
+    cmux send-key enter 2>/dev/null || true
+
+    CMUX_SURFACES["$task_id"]="${surface_id:-$task_id}"
+
+    # Restore focus to the previously-focused surface.
+    if [[ -n "$prev_surface" ]]; then
+        cmux focus-surface "$prev_surface" 2>/dev/null || true
+    fi
+
+    echo "${surface_id:-$task_id}"
+}
+
 # Check if a task's surface is still running
 # Returns 0 if running, 1 if finished
 pane_is_running() {
@@ -108,6 +146,56 @@ kill_task_pane() {
         cmux send-key enter 2>/dev/null || true
         unset CMUX_SURFACES["$task_id"]
     fi
+}
+
+# Create a new surface for a watcher and run the command in it
+# Returns the surface ID
+spawn_watcher_pane() {
+    local session="$1" pr_number="$2" cmd="$3"
+    local window_name="watch-pr-${pr_number}"
+
+    # Locate the renderer and the state files (same logic as mux-tmux.sh).
+    local lib_dir
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local renderer="${lib_dir%/lib}/render-watcher-status.sh"
+    local project_dir
+    project_dir=$(echo "$cmd" | sed -nE "s/.*--project-dir '([^']*)'.*/\\1/p")
+    local state_file="${project_dir}/.state/watchers/${pr_number}.state"
+    local json_file="${project_dir}/.state/watchers/${pr_number}.json"
+
+    local refresh_cmd="while true; do
+        clear
+        if [[ -f '$state_file' && -f '$json_file' ]]; then
+            '$renderer' '$state_file' '$json_file' || echo 'renderer error'
+        else
+            echo 'waiting for first poll…'
+        fi
+        sleep 5
+    done"
+
+    # Create the watcher pane (matches the existing pattern in this file).
+    cmux select-workspace "$session" 2>/dev/null || true
+    local surface_id
+    surface_id=$(cmux new-split down 2>/dev/null || true)
+    cmux set-status "watcher" "$window_name" 2>/dev/null || true
+    cmux send "$cmd" 2>/dev/null || true
+    cmux send-key enter 2>/dev/null || true
+
+    # Save reference for pane_is_running.
+    if [[ -n "${CMUX_SURFACES:-}" ]]; then
+        CMUX_SURFACES["$window_name"]="${surface_id:-$window_name}"
+    fi
+
+    # Add the status pane above the watcher pane.
+    cmux new-split up 2>/dev/null || true
+    cmux set-status "watcher-status" "${window_name}-status" 2>/dev/null || true
+    cmux send "$refresh_cmd" 2>/dev/null || true
+    cmux send-key enter 2>/dev/null || true
+
+    # Move focus back to the watcher (log) pane.
+    cmux select-split down 2>/dev/null || true
+
+    echo "${surface_id:-$window_name}"
 }
 
 # Update the orchestrator display (no-op for cmux — the dashboard renders in-terminal)

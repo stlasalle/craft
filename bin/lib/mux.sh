@@ -17,6 +17,10 @@
 #
 #   kill_task_pane <session> <task-id>
 #     → Clean up a task's pane/surface.
+#
+#   spawn_watcher_pane <session> <pr_number> <cmd>
+#     → Create a named pane/surface ("watch-pr-<N>") running the given command.
+#       Returns the pane/surface identifier.
 
 MUX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

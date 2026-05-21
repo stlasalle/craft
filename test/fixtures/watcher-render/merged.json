@@ -1,0 +1,16 @@
+{
+  "state": "MERGED",
+  "isDraft": false,
+  "mergeable": "UNKNOWN",
+  "title": "feat: add widget",
+  "number": 42,
+  "mergedAt": "2026-04-29T15:41:00Z",
+  "statusCheckRollup": [
+    {"name": "lint", "conclusion": "SUCCESS", "status": "COMPLETED"},
+    {"name": "unit-tests", "conclusion": "SUCCESS", "status": "COMPLETED"}
+  ],
+  "reviews": [
+    {"state": "APPROVED", "author": {"login": "alice"}}
+  ],
+  "comments": []
+}
